@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="/*{JSON.stringify($.locale)}*/">
+  <head>
+    <meta charset="utf8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>/*{$.title}*/</title>
+    <style>
+      /*{FA}*/
+    </style>
+    <style>
+      /*{STYLE}*/
+    </style>
+    <style>
+      /*{PAGESTYLE}*/
+    </style>
+    <script type="text/javascript">
+      Object["FRONT"] = true;
+      window.__PROPS = "/*{JSON.stringify($)}*/";
+    </script>
+    <script type="text/javascript">
+      /*{REACT}*/
+    </script>
+    <script type="text/javascript">
+      /*{REACTDOM}*/
+    </script>
+  </head>
+  <body>
+    <main class><section id="stage">/* %%SSR%% */</section></main>
+    <script type="text/javascript">
+      Object.assign(
+        window.__CLIENT_SETTINGS,
+        "/*{JSON.stringify(CLIENT_SETTINGS)}*/"
+      );
+    </script>
+    <script type="text/javascript">
+      /*{SCRIPT}*/
+    </script>
+  </body>
+</html>

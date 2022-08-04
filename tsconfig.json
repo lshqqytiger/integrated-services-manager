@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "es2021",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "jsx": "react",
+    "outDir": "./dist"
+  },
+  "include": ["src/electron/*.ts", "src/front/*.tsx", "src/front/*.ts"]
+}

@@ -1,0 +1,15 @@
+{
+  "nvm": "D:/nvm",
+  "services": [
+    {
+      "name": "discord-sorrygle-bot",
+      "main": "dist/Main.js",
+      "nodeVersion": "18.6.0"
+    },
+    {
+      "name": "Sorrygle-community",
+      "main": "dist/Main.js",
+      "nodeVersion": "12.22.12"
+    }
+  ]
+}
