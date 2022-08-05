@@ -7,6 +7,7 @@ export interface Service {
   version: string;
   main: string;
   nodeVersion: string;
+  argv: string[];
 
   status: ServiceStatus;
 }

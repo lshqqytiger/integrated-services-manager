@@ -44,17 +44,15 @@ export default class Index extends PureComponent<Props, State> {
   render(): React.ReactNode {
     return (
       <article>
-        <ol>
+        <div className="service-list">
           {this.state.services.map((v, i) => (
-            <li>
-              <ServiceOverall
-                service={v}
-                index={i}
-                ipcRenderer={this.props.ipcRenderer}
-              />
-            </li>
+            <ServiceOverall
+              service={v}
+              index={i}
+              ipcRenderer={this.props.ipcRenderer}
+            />
           ))}
-        </ol>
+        </div>
       </article>
     );
   }

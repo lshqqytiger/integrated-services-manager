@@ -10,6 +10,30 @@
       "name": "Sorrygle-community",
       "main": "dist/Main.js",
       "nodeVersion": "12.22.12"
+    },
+    {
+      "name": "kkutu-core-web",
+      "main": "lib/Web/cluster.js",
+      "nodeVersion": "12.22.12",
+      "argv": [1]
+    },
+    {
+      "name": "kkutu-core-ws",
+      "main": "lib/Handler/cluster.js",
+      "nodeVersion": "12.22.12",
+      "argv": [1]
+    },
+    {
+      "name": "kkutu-core-game",
+      "main": "lib/Game/cluster.js",
+      "nodeVersion": "12.22.12",
+      "argv": [0, 1]
+    },
+    {
+      "name": "sorrydle-bot",
+      "main": "lib/Sorrydl/cluster.js",
+      "nodeVersion": "12.22.12",
+      "argv": [1]
     }
   ]
 }

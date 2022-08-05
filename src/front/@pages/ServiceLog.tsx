@@ -39,6 +39,7 @@ export default class ServiceLog extends PureComponent<Props, State> {
     const logs = new LengthLimitedArray(100);
     logs.push(...this.props.logs);
     this.setState({ logs });
+    if (this.logBox.current) this.logBox.current.scrollTop = 99999999;
     this.props.ipcRenderer.on("service-started", (event, res: number) => {
       if (res !== this.props.index) return;
       this.setState({
@@ -55,8 +56,8 @@ export default class ServiceLog extends PureComponent<Props, State> {
       if (res.index !== this.props.index) return;
       const logs = this.state.logs.copy();
       logs.push(res.data);
-      if (this.logBox.current) this.logBox.current.scrollTop = 99999999;
       this.setState({ logs });
+      if (this.logBox.current) this.logBox.current.scrollTop = 99999999;
     });
   }
   render(): React.ReactNode {

@@ -4,7 +4,7 @@
   grid-template-columns: auto;
   border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 10px;
-  height: 200px;
+  height: 100px;
   width: 200px;
   margin: 6px 6px 6px 6px;
 }
@@ -16,4 +16,9 @@
 }
 .service-status1 {
   color: greenyellow;
+}
+.service-list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
 }

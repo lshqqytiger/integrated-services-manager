@@ -53,7 +53,7 @@ function createWindow() {
     constructor(index: number) {
       this.index = index;
     }
-    spawn() {
+    spawn(...argv: string[]) {
       const cwd = path.resolve(
         __dirname,
         "../../services",
@@ -67,7 +67,7 @@ function createWindow() {
           `v${SETTINGS.services[this.index].nodeVersion}`,
           "node"
         )}`,
-        [path.resolve(cwd, SETTINGS.services[this.index].main)],
+        [path.resolve(cwd, SETTINGS.services[this.index].main), ...argv],
         {
           cwd,
         }
@@ -169,7 +169,7 @@ function createWindow() {
   ipcMain.on("service-toggle", (event, res) => {
     const process = processes[res];
     if (process.status === ServiceStatus.RUNNING) process.kill(0);
-    else process.spawn();
+    else process.spawn(...(SETTINGS.services[res].argv || []));
   });
 }
 app.whenReady().then(() => {
