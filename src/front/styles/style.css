@@ -1,7 +1,12 @@
 body {
   background: #050f21;
   color: #eee;
+  font-family: Main, sans-serif;
 }
 ol {
   list-style: none;
+}
+@font-face {
+  font-family: Main;
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-07@1.0/TmoneyRoundWindRegular.woff");
 }

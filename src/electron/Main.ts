@@ -1,31 +1,13 @@
-import { app, BrowserWindow, ipcMain, ipcRenderer } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 
 import path from "path";
 import { readFileSync, writeFileSync } from "fs";
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
 
-import { Settings, Service, ServiceStatus } from "../common/types";
-
-class LengthLimitedArray extends Array {
-  maxLength: number;
-  constructor(maxLength: number) {
-    super();
-
-    this.maxLength = maxLength;
-  }
-  push(...args: any[]) {
-    if (this.length >= this.maxLength) this.shift();
-
-    return super.push(...args);
-  }
-}
+import { Settings, ServiceStatus, LengthLimitedArray } from "../common/Utility";
 
 const HTML_TEMPLATE = readFileSync(
   path.resolve(__dirname, "../../data/template.html"),
-  "utf8"
-);
-const FA = readFileSync(
-  path.resolve(__dirname, "../front/public/libs/font-awesome/css/all.min.css"),
   "utf8"
 );
 const STYLE = readFileSync(
@@ -65,8 +47,9 @@ function createWindow() {
   class ChildProcess {
     process?: ChildProcessWithoutNullStreams;
     index: number;
-    logs = new LengthLimitedArray(20);
     status: ServiceStatus = ServiceStatus.STOPPED;
+    logs: LengthLimitedArray = new LengthLimitedArray(20);
+    isOpened: boolean = false;
     constructor(index: number) {
       this.index = index;
     }
@@ -77,7 +60,7 @@ function createWindow() {
         SETTINGS.services[this.index].name
       );
       win.webContents.send("service-started", this.index);
-      this.status = ServiceStatus.RUNNING;
+      this.status = $.services[this.index].status = ServiceStatus.RUNNING;
       this.process = spawn(
         `${path.resolve(
           SETTINGS.nvm,
@@ -91,15 +74,31 @@ function createWindow() {
       );
       this.process.stdout.on("data", (msg) => {
         const lines = msg.toString().split(/(\r?\n)/g);
-        for (let i of lines) if (i) this.logs.push(i);
+        for (let line of lines)
+          if (line) {
+            this.logs.push(line);
+            if (this.isOpened)
+              win.webContents.send("service-log", {
+                index: this.index,
+                data: line,
+              });
+          }
       });
       this.process.stderr.on("data", (msg) => {
         const lines = msg.toString().split(/(\r?\n)/g);
-        for (let i of lines) if (i) this.logs.push(i);
+        for (let line of lines)
+          if (line) {
+            this.logs.push(line);
+            if (this.isOpened)
+              win.webContents.send("service-log", {
+                index: this.index,
+                data: line,
+              });
+          }
       });
       this.process.on("close", () => {
         win.webContents.send("service-stopped", this.index);
-        this.status = ServiceStatus.STOPPED;
+        this.status = $.services[this.index].status = ServiceStatus.STOPPED;
       });
     }
     kill(sig: any) {
@@ -132,6 +131,8 @@ function createWindow() {
     );
     SETTINGS.services[service].version = pkg.version;
     SETTINGS.services[service].status = ServiceStatus.STOPPED;
+    if (!SETTINGS.services[service].main)
+      SETTINGS.services[service].main = pkg.main;
     processes.push(new ChildProcess(Number(service)));
   }
   $.title = "Integrated Services Manager";
@@ -145,13 +146,20 @@ function createWindow() {
 
   ipcMain.on("page-move", (event, res) => {
     SCRIPT = readFileSync(
-      path.resolve(__dirname, `../front/public/pages/${res}.js`),
+      path.resolve(__dirname, `../front/public/pages/${res.pageName}.js`),
       "utf8"
     );
     PAGESTYLE = readFileSync(
-      path.resolve(__dirname, `../front/public/styles/${res}.css`),
+      path.resolve(__dirname, `../front/public/styles/${res.pageName}.css`),
       "utf8"
     );
+    Object.assign($, res.props);
+    if ($.preIndex) processes[$.preIndex].isOpened = false;
+    if (res.pageName === "ServiceLog") {
+      $.logs = processes[res.props.index].logs;
+      $.preIndex = res.props.index;
+      processes[res.props.index].isOpened = true;
+    }
     HTML = HTML_TEMPLATE.replace(/("?)\/\*\{(.+?)\}\*\/\1/g, (v, p1, p2) =>
       String(eval(p2))
     );

@@ -1,0 +1,19 @@
+.service-title {
+  margin: 2px 2px 2px 2px;
+}
+.service-status0 {
+  color: orange;
+}
+.service-status1 {
+  color: greenyellow;
+}
+.service-log {
+  overflow-y: scroll;
+  white-space: normal;
+  height: 400px;
+  color: #ccc;
+}
+.log-item:hover {
+  margin: 1px 0px;
+  background-color: #333;
+}

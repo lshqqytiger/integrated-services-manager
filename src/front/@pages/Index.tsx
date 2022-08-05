@@ -3,7 +3,12 @@ import { IpcRenderer } from "electron";
 
 import Bind from "../ReactBootstrap";
 
-import { Service, ServiceStatus } from "../../common/types";
+import {
+  Service,
+  STDResponse,
+  ServiceStatus,
+  LengthLimitedArray,
+} from "../../common/Utility";
 
 import ServiceOverall from "../@components/ServiceOverall";
 
@@ -16,27 +21,25 @@ interface State {
 }
 
 export default class Index extends PureComponent<Props, State> {
-  state: State = { services: [] };
+  state: State = { services: this.props.services };
   constructor(props: Props) {
     super(props);
-
-    this.props.ipcRenderer.on("service-started", (event, res) => {
-      let services = [...this.state.services];
+  }
+  componentDidMount() {
+    this.props.ipcRenderer.on("service-started", (event, res: number) => {
+      const services = [...this.state.services];
       services[res] = { ...services[res], status: ServiceStatus.RUNNING };
       this.setState({
         services,
       });
     });
-    this.props.ipcRenderer.on("service-stopped", (event, res) => {
-      let services = [...this.state.services];
+    this.props.ipcRenderer.on("service-stopped", (event, res: number) => {
+      const services = [...this.state.services];
       services[res] = { ...services[res], status: ServiceStatus.STOPPED };
       this.setState({
         services,
       });
     });
-  }
-  componentDidMount() {
-    this.setState({ services: this.props.services });
   }
   render(): React.ReactNode {
     return (
@@ -45,7 +48,7 @@ export default class Index extends PureComponent<Props, State> {
           {this.state.services.map((v, i) => (
             <li>
               <ServiceOverall
-                {...v}
+                service={v}
                 index={i}
                 ipcRenderer={this.props.ipcRenderer}
               />
