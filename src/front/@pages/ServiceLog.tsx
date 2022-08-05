@@ -25,15 +25,18 @@ interface State {
 const ansi2html = new Convert();
 
 export default class ServiceLog extends PureComponent<Props, State> {
+  logBox: React.RefObject<HTMLDivElement>;
   state: State = {
     service: this.props.service,
-    logs: new LengthLimitedArray(20),
+    logs: new LengthLimitedArray(100),
   };
   constructor(props: Props) {
     super(props);
+
+    this.logBox = React.createRef();
   }
   componentDidMount() {
-    const logs = new LengthLimitedArray(20);
+    const logs = new LengthLimitedArray(100);
     logs.push(...this.props.logs);
     this.setState({ logs });
     this.props.ipcRenderer.on("service-started", (event, res: number) => {
@@ -52,6 +55,7 @@ export default class ServiceLog extends PureComponent<Props, State> {
       if (res.index !== this.props.index) return;
       const logs = this.state.logs.copy();
       logs.push(res.data);
+      if (this.logBox.current) this.logBox.current.scrollTop = 99999999;
       this.setState({ logs });
     });
   }
@@ -85,7 +89,7 @@ export default class ServiceLog extends PureComponent<Props, State> {
           </a>
           {this.state.service.name}@{this.state.service.version}
         </div>
-        <div className="service-log">
+        <div className="service-log" ref={this.logBox}>
           {this.state.logs.map((v) => (
             <div
               className="log-item"

@@ -48,7 +48,7 @@ function createWindow() {
     process?: ChildProcessWithoutNullStreams;
     index: number;
     status: ServiceStatus = ServiceStatus.STOPPED;
-    logs: LengthLimitedArray = new LengthLimitedArray(20);
+    logs: LengthLimitedArray = new LengthLimitedArray(100);
     isOpened: boolean = false;
     constructor(index: number) {
       this.index = index;
