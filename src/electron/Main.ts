@@ -59,13 +59,14 @@ function createWindow() {
     constructor(index: number) {
       this.index = index;
     }
+    getWindow = () => detachedWindows[this.index] || win;
     spawn(...argv: string[]) {
       const cwd = path.resolve(
         __dirname,
         "../../services",
         SETTINGS.services[this.index].name
       );
-      win.webContents.send("service-started", this.index);
+      this.getWindow().webContents.send("service-started", this.index);
       this.status = $.services![this.index].status = ServiceStatus.RUNNING;
       this.process = spawn(
         `${path.resolve(
@@ -84,7 +85,7 @@ function createWindow() {
           if (line) {
             this.logs.push(line);
             if (this.isOpened)
-              win.webContents.send("service-log", {
+              this.getWindow().webContents.send("service-log", {
                 index: this.index,
                 data: line,
               });
@@ -96,14 +97,14 @@ function createWindow() {
           if (line) {
             this.logs.push(line);
             if (this.isOpened)
-              win.webContents.send("service-log", {
+              this.getWindow().webContents.send("service-log", {
                 index: this.index,
                 data: line,
               });
           }
       });
       this.process.on("close", () => {
-        win.webContents.send("service-stopped", this.index);
+        this.getWindow().webContents.send("service-stopped", this.index);
         this.status = $.services![this.index].status = ServiceStatus.STOPPED;
       });
     }
@@ -163,7 +164,8 @@ function createWindow() {
       "utf8"
     );
     Object.assign($, res.props);
-    if ($.preIndex) processes[$.preIndex].isOpened = false;
+    if ($.preIndex && !detachedWindows[$.preIndex])
+      processes[$.preIndex].isOpened = false;
     if (res.pageName === "ServiceLog") {
       $.logs = processes[res.props.index].logs;
       $.preIndex = res.props.index;
@@ -226,7 +228,8 @@ function createWindow() {
       path.resolve(__dirname, "../front/public/styles/Index.css"),
       "utf8"
     );
-    if ($.preIndex) processes[$.preIndex].isOpened = false;
+    if ($.preIndex && !detachedWindows[$.preIndex])
+      processes[$.preIndex].isOpened = false;
     $.title = "Integrated Services Manager";
     $.pageName = "Index";
     HTML = HTML_TEMPLATE.replace(/("?)\/\*\{(.+?)\}\*\/\1/g, (v, p1, p2) =>
