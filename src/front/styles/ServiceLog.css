@@ -17,3 +17,6 @@
   margin: 1px 0px;
   background-color: #333;
 }
+.detach-window {
+  float: right;
+}

@@ -11,6 +11,15 @@ export interface Service {
 
   status: ServiceStatus;
 }
+export interface Props {
+  title: string;
+  version: string;
+  services: Service[];
+  preIndex: number;
+  logs: LengthLimitedArray<string>;
+  detachedWindows: string[];
+  pageName: string;
+}
 export interface STDResponse {
   index: number;
   data: string;
@@ -19,20 +28,20 @@ export enum ServiceStatus {
   STOPPED,
   RUNNING,
 }
-export class LengthLimitedArray extends Array {
+export class LengthLimitedArray<T> extends Array {
   maxLength: number;
   constructor(maxLength: number) {
     super();
 
     this.maxLength = maxLength;
   }
-  push(...args: any[]) {
+  push(...args: T[]) {
     if (this.length >= this.maxLength) this.shift();
 
     return super.push(...args);
   }
   copy() {
-    const copied = this.slice(0) as LengthLimitedArray;
+    const copied = this.slice(0) as LengthLimitedArray<T>;
     copied.maxLength = this.maxLength;
     return copied;
   }

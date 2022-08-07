@@ -7,6 +7,7 @@ interface Props {
   service: Service;
   ipcRenderer: IpcRenderer;
   index: number;
+  detachedWindows: string[];
 }
 
 export default class ServiceOverall extends PureComponent<Props> {
@@ -34,12 +35,15 @@ export default class ServiceOverall extends PureComponent<Props> {
           <br />
           {this.props.service.version}
           <button
-            onClick={() => {
+            onClick={() =>
               this.props.ipcRenderer.send("page-move", {
                 pageName: "ServiceLog",
                 props: { index: this.props.index, service: this.props.service },
-              });
-            }}
+              })
+            }
+            disabled={this.props.detachedWindows.includes(
+              String(this.props.index)
+            )}
           >
             자세히
           </button>

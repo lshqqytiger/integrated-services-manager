@@ -15,6 +15,7 @@ import ServiceOverall from "../@components/ServiceOverall";
 interface Props {
   ipcRenderer: IpcRenderer;
   services: Service[];
+  detachedWindows: string[];
 }
 interface State {
   services: Service[];
@@ -50,6 +51,7 @@ export default class Index extends PureComponent<Props, State> {
               service={v}
               index={i}
               ipcRenderer={this.props.ipcRenderer}
+              detachedWindows={this.props.detachedWindows}
             />
           ))}
         </div>

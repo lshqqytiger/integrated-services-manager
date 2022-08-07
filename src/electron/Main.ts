@@ -4,7 +4,12 @@ import path from "path";
 import { readFileSync, writeFileSync } from "fs";
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
 
-import { Settings, ServiceStatus, LengthLimitedArray } from "../common/Utility";
+import {
+  Settings,
+  ServiceStatus,
+  LengthLimitedArray,
+  Props,
+} from "../common/Utility";
 
 const HTML_TEMPLATE = readFileSync(
   path.resolve(__dirname, "../../data/template.html"),
@@ -43,12 +48,13 @@ function createWindow() {
     },
   });
   const processes: ChildProcess[] = [];
+  const detachedWindows: BrowserWindow[] = Array(SETTINGS.services.length);
 
   class ChildProcess {
     process?: ChildProcessWithoutNullStreams;
     index: number;
     status: ServiceStatus = ServiceStatus.STOPPED;
-    logs: LengthLimitedArray = new LengthLimitedArray(100);
+    logs: LengthLimitedArray<string> = new LengthLimitedArray(100);
     isOpened: boolean = false;
     constructor(index: number) {
       this.index = index;
@@ -60,7 +66,7 @@ function createWindow() {
         SETTINGS.services[this.index].name
       );
       win.webContents.send("service-started", this.index);
-      this.status = $.services[this.index].status = ServiceStatus.RUNNING;
+      this.status = $.services![this.index].status = ServiceStatus.RUNNING;
       this.process = spawn(
         `${path.resolve(
           SETTINGS.nvm,
@@ -98,7 +104,7 @@ function createWindow() {
       });
       this.process.on("close", () => {
         win.webContents.send("service-stopped", this.index);
-        this.status = $.services[this.index].status = ServiceStatus.STOPPED;
+        this.status = $.services![this.index].status = ServiceStatus.STOPPED;
       });
     }
     kill(sig: any) {
@@ -106,7 +112,7 @@ function createWindow() {
     }
   }
 
-  const $: any = {};
+  const $: Partial<Props> = {};
   //const REACT_SUFFIX = "production.min";
   const CLIENT_SETTINGS = {};
   let SCRIPT = readFileSync(
@@ -138,11 +144,12 @@ function createWindow() {
   $.title = "Integrated Services Manager";
   $.version = PACKAGE["version"];
   $.services = SETTINGS.services;
+  $.detachedWindows = [];
   let HTML = HTML_TEMPLATE.replace(/("?)\/\*\{(.+?)\}\*\/\1/g, (v, p1, p2) =>
     String(eval(p2))
   );
-  writeFileSync(path.resolve(__dirname, "index.html"), HTML, "utf8");
-  win.loadFile(path.resolve(__dirname, "index.html"));
+  writeFileSync(path.resolve(__dirname, "Index.html"), HTML, "utf8");
+  win.loadFile(path.resolve(__dirname, "Index.html"));
 
   ipcMain.on("page-move", (event, res) => {
     SCRIPT = readFileSync(
@@ -160,25 +167,72 @@ function createWindow() {
       $.preIndex = res.props.index;
       processes[res.props.index].isOpened = true;
     }
+    $.pageName = res.pageName;
     HTML = HTML_TEMPLATE.replace(/("?)\/\*\{(.+?)\}\*\/\1/g, (v, p1, p2) =>
       String(eval(p2))
     );
-    writeFileSync(path.resolve(__dirname, "index.html"), HTML, "utf8");
-    win.loadFile(path.resolve(__dirname, "index.html"));
+    writeFileSync(
+      path.resolve(__dirname, `${res.pageName}.html`),
+      HTML,
+      "utf8"
+    );
+    win.loadFile(path.resolve(__dirname, `${res.pageName}.html`));
   });
   ipcMain.on("service-toggle", (event, res) => {
     const process = processes[res];
     if (process.status === ServiceStatus.RUNNING) process.kill(0);
     else process.spawn(...(SETTINGS.services[res].argv || []));
   });
+  ipcMain.on("detach-window", (event, res) => {
+    detachedWindows[res] = new BrowserWindow({
+      width: 800,
+      height: 600,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+        preload: path.resolve(__dirname, "preload.js"),
+      },
+    });
+    detachedWindows[res].on("closed", () => {
+      delete detachedWindows[res];
+      $.detachedWindows = Object.keys(detachedWindows).filter(
+        (v) => !!detachedWindows[Number(v)]
+      );
+      if ($.pageName === "Index") renderIndex();
+    });
+    $.title = `${SETTINGS.services[res].name}@${SETTINGS.services[res].version}`;
+    $.detachedWindows = Object.keys(detachedWindows).filter(
+      (v) => !!detachedWindows[Number(v)]
+    );
+    HTML = HTML_TEMPLATE.replace(/("?)\/\*\{(.+?)\}\*\/\1/g, (v, p1, p2) =>
+      String(eval(p2))
+    );
+    writeFileSync(path.resolve(__dirname, "ServiceLog.html"), HTML, "utf8");
+    detachedWindows[res].loadFile(path.resolve(__dirname, "ServiceLog.html"));
+    renderIndex();
+  });
+  win.on("close", () => {
+    if (process.platform !== "darwin") app.exit();
+  });
+  function renderIndex() {
+    SCRIPT = readFileSync(
+      path.resolve(__dirname, "../front/public/pages/Index.js"),
+      "utf8"
+    );
+    PAGESTYLE = readFileSync(
+      path.resolve(__dirname, "../front/public/styles/Index.css"),
+      "utf8"
+    );
+    if ($.preIndex) processes[$.preIndex].isOpened = false;
+    $.title = "Integrated Services Manager";
+    $.pageName = "Index";
+    HTML = HTML_TEMPLATE.replace(/("?)\/\*\{(.+?)\}\*\/\1/g, (v, p1, p2) =>
+      String(eval(p2))
+    );
+    writeFileSync(path.resolve(__dirname, "Index.html"), HTML, "utf8");
+    win.loadFile(path.resolve(__dirname, "Index.html"));
+  }
 }
 app.whenReady().then(() => {
   createWindow();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
 });

@@ -1,6 +1,6 @@
 import React, { PureComponent } from "react";
 import { IpcRenderer } from "electron";
-import Convert from "ansi-to-html";
+import AnsiConverter from "ansi-to-html";
 
 import Bind from "../ReactBootstrap";
 
@@ -15,14 +15,15 @@ interface Props {
   ipcRenderer: IpcRenderer;
   service: Service;
   index: number;
-  logs: LengthLimitedArray;
+  logs: LengthLimitedArray<string>;
+  detachedWindows: string[];
 }
 interface State {
   service: Service;
-  logs: LengthLimitedArray;
+  logs: LengthLimitedArray<string>;
 }
 
-const ansi2html = new Convert();
+const { toHtml } = new AnsiConverter();
 
 export default class ServiceLog extends PureComponent<Props, State> {
   logBox: React.RefObject<HTMLDivElement>;
@@ -39,7 +40,6 @@ export default class ServiceLog extends PureComponent<Props, State> {
     const logs = new LengthLimitedArray(100);
     logs.push(...this.props.logs);
     this.setState({ logs });
-    if (this.logBox.current) this.logBox.current.scrollTop = 99999999;
     this.props.ipcRenderer.on("service-started", (event, res: number) => {
       if (res !== this.props.index) return;
       this.setState({
@@ -59,6 +59,9 @@ export default class ServiceLog extends PureComponent<Props, State> {
       this.setState({ logs });
       if (this.logBox.current) this.logBox.current.scrollTop = 99999999;
     });
+    setTimeout(() => {
+      if (this.logBox.current) this.logBox.current.scrollTop = 99999999;
+    }, 100);
   }
   render(): React.ReactNode {
     return (
@@ -66,12 +69,12 @@ export default class ServiceLog extends PureComponent<Props, State> {
         <div className="service-title">
           <i
             className="icon fas fa-fw fa-arrow-left"
-            onClick={() => {
+            onClick={() =>
               this.props.ipcRenderer.send("page-move", {
                 pageName: "Index",
                 props: { index: this.props.index },
-              });
-            }}
+              })
+            }
           />
           <a
             className={`service-status${this.state.service.status}`}
@@ -89,15 +92,23 @@ export default class ServiceLog extends PureComponent<Props, State> {
             ●
           </a>
           {this.state.service.name}@{this.state.service.version}
+          {this.props.detachedWindows.includes(
+            String(this.props.index)
+          ) ? null : (
+            <i
+              className="icon fas fa-fw fa-up-right-from-square detach-window"
+              onClick={() =>
+                this.props.ipcRenderer.send("detach-window", this.props.index)
+              }
+            />
+          )}
         </div>
         <div className="service-log" ref={this.logBox}>
           {this.state.logs.map((v) => (
             <div
               className="log-item"
               dangerouslySetInnerHTML={{
-                __html: ansi2html.toHtml(
-                  v.replace(/</g, "&lt;").replace(/&/g, "&amp;")
-                ),
+                __html: toHtml(v.replace(/</g, "&lt;").replace(/&/g, "&amp;")),
               }}
             />
           ))}

@@ -15,7 +15,7 @@ interface State {
   ipcRenderer: IpcRenderer;
 }
 
-const PROPS = eval("window['__PROPS']");
+const PROPS = eval("window['__PROPS']") || {};
 
 export default function Bind(TargetClass: any) {
   const $root = document.getElementById("stage");
