@@ -152,6 +152,8 @@ function createWindow() {
   win.loadFile(path.resolve(__dirname, "Index.html"));
 
   ipcMain.on("page-move", (event, res) => {
+    if (detachedWindows[res.props.index])
+      return detachedWindows[res.props.index].close();
     SCRIPT = readFileSync(
       path.resolve(__dirname, `../front/public/pages/${res.pageName}.js`),
       "utf8"
@@ -182,6 +184,7 @@ function createWindow() {
     const process = processes[res];
     if (process.status === ServiceStatus.RUNNING) process.kill(0);
     else process.spawn(...(SETTINGS.services[res].argv || []));
+    if ($.pageName === "Index") renderIndex();
   });
   ipcMain.on("detach-window", (event, res) => {
     detachedWindows[res] = new BrowserWindow({

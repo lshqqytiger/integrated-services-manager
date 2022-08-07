@@ -23,7 +23,7 @@ interface State {
   logs: LengthLimitedArray<string>;
 }
 
-const { toHtml } = new AnsiConverter();
+const ansi2html = new AnsiConverter();
 
 export default class ServiceLog extends PureComponent<Props, State> {
   logBox: React.RefObject<HTMLDivElement>;
@@ -108,7 +108,9 @@ export default class ServiceLog extends PureComponent<Props, State> {
             <div
               className="log-item"
               dangerouslySetInnerHTML={{
-                __html: toHtml(v.replace(/</g, "&lt;").replace(/&/g, "&amp;")),
+                __html: ansi2html.toHtml(
+                  v.replace(/</g, "&lt;").replace(/&/g, "&amp;")
+                ),
               }}
             />
           ))}
