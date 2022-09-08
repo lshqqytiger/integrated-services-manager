@@ -4,48 +4,56 @@
     {
       "name": "discord-sorrygle-bot",
       "main": "dist/Main.js",
-      "nodeVersion": "18.6.0"
+      "nodeVersion": "18.8.0",
+      "mode": "DEVELOPMENT"
     },
     {
       "name": "Sorrygle-community",
       "main": "dist/Main.js",
-      "nodeVersion": "12.22.12"
+      "nodeVersion": "12.22.12",
+      "mode": "DEVELOPMENT"
     },
     {
       "name": "sorrydle-bot",
       "main": "lib/Sorrydl/cluster.js",
       "nodeVersion": "12.22.12",
-      "argv": [1]
+      "argv": [1],
+      "mode": "PRODUCTION"
     },
     {
       "name": "kkutu-core-web",
       "main": "lib/Web/cluster.js",
       "nodeVersion": "12.22.12",
-      "argv": [1]
+      "argv": [1],
+      "mode": "PRODUCTION"
     },
     {
       "name": "kkutu-core-ws",
       "main": "lib/Handler/cluster.js",
       "nodeVersion": "12.22.12",
-      "argv": [1]
+      "argv": [1],
+      "mode": "PRODUCTION"
     },
     {
       "name": "kkutu-core-game",
       "main": "lib/Game/cluster.js",
       "nodeVersion": "12.22.12",
-      "argv": [0, 1]
+      "argv": [0, 1],
+      "mode": "PRODUCTION"
     },
     {
       "name": "kkutu-test-web",
       "main": "libtest/Web/cluster.js",
       "nodeVersion": "12.22.12",
-      "argv": [1]
+      "argv": [1],
+      "mode": "DEVELOPMENT"
     },
     {
       "name": "kkutu-test-game",
       "main": "libtest/Game/cluster.js",
       "nodeVersion": "12.22.12",
-      "argv": [0, 1]
+      "argv": [0, 1],
+      "mode": "DEVELOPMENT"
     }
   ]
 }

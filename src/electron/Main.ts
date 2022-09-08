@@ -9,6 +9,7 @@ import {
   ServiceStatus,
   LengthLimitedArray,
   Props,
+  Service,
 } from "../common/Utility";
 
 const HTML_TEMPLATE = readFileSync(
@@ -56,25 +57,19 @@ function createWindow() {
     status: ServiceStatus = ServiceStatus.STOPPED;
     logs: LengthLimitedArray<string> = new LengthLimitedArray(100);
     isOpened: boolean = false;
+    config: Service;
     constructor(index: number) {
       this.index = index;
+      this.config = SETTINGS.services[this.index];
     }
     getWindow = () => detachedWindows[this.index] || win;
     spawn(...argv: string[]) {
-      const cwd = path.resolve(
-        __dirname,
-        "../../services",
-        SETTINGS.services[this.index].name
-      );
+      const cwd = path.resolve(__dirname, "../../services", this.config.name);
       this.getWindow().webContents.send("service-started", this.index);
-      this.status = $.services![this.index].status = ServiceStatus.RUNNING;
+      this.status = this.config.status = ServiceStatus.RUNNING;
       this.process = spawn(
-        `${path.resolve(
-          SETTINGS.nvm,
-          `v${SETTINGS.services[this.index].nodeVersion}`,
-          "node"
-        )}`,
-        [path.resolve(cwd, SETTINGS.services[this.index].main), ...argv],
+        `${path.resolve(SETTINGS.nvm, `v${this.config.nodeVersion}`, "node")}`,
+        [path.resolve(cwd, this.config.main), ...argv],
         {
           cwd,
         }
@@ -106,6 +101,7 @@ function createWindow() {
       this.process.on("close", () => {
         this.getWindow().webContents.send("service-stopped", this.index);
         this.status = $.services![this.index].status = ServiceStatus.STOPPED;
+        if (this.config.mode === "PRODUCTION") this.spawn(...argv);
       });
     }
     kill(sig: any) {
@@ -114,7 +110,6 @@ function createWindow() {
   }
 
   const $: Partial<Props> = {};
-  //const REACT_SUFFIX = "production.min";
   const CLIENT_SETTINGS = {};
   let SCRIPT = readFileSync(
     path.resolve(__dirname, "../front/public/pages/Index.js"),

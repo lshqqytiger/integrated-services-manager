@@ -8,6 +8,7 @@ export interface Service {
   main: string;
   nodeVersion: string;
   argv: string[];
+  mode: "PRODUCTION" | "DEVELOPMENT";
 
   status: ServiceStatus;
 }
