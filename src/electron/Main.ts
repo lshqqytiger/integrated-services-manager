@@ -60,13 +60,13 @@ function createWindow() {
     config: Service;
     constructor(index: number) {
       this.index = index;
-      this.config = SETTINGS.services[this.index];
+      this.config = SETTINGS.services[index];
     }
     getWindow = () => detachedWindows[this.index] || win;
     spawn(...argv: string[]) {
       const cwd = path.resolve(__dirname, "../../services", this.config.name);
       this.getWindow().webContents.send("service-started", this.index);
-      this.status = this.config.status = ServiceStatus.RUNNING;
+      this.status = $.services![this.index].status = ServiceStatus.RUNNING;
       this.process = spawn(
         `${path.resolve(SETTINGS.nvm, `v${this.config.nodeVersion}`, "node")}`,
         [path.resolve(cwd, this.config.main), ...argv],
