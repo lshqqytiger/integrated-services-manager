@@ -62,10 +62,12 @@ function createWindow() {
       this.index = index;
       this.config = SETTINGS.services[index];
     }
-    getWindow = () => detachedWindows[this.index] || win;
+    get window() {
+      return detachedWindows[this.index] || win;
+    }
     spawn(...argv: string[]) {
       const cwd = path.resolve(__dirname, "../../services", this.config.name);
-      this.getWindow().webContents.send("service-started", this.index);
+      this.window.webContents.send("service-started", this.index);
       this.status = $.services![this.index].status = ServiceStatus.RUNNING;
       this.process = spawn(
         `${path.resolve(SETTINGS.nvm, `v${this.config.nodeVersion}`, "node")}`,
@@ -80,7 +82,7 @@ function createWindow() {
           if (line) {
             this.logs.push(line);
             if (this.isOpened)
-              this.getWindow().webContents.send("service-log", {
+              this.window.webContents.send("service-log", {
                 index: this.index,
                 data: line,
               });
@@ -92,16 +94,16 @@ function createWindow() {
           if (line) {
             this.logs.push(line);
             if (this.isOpened)
-              this.getWindow().webContents.send("service-log", {
+              this.window.webContents.send("service-log", {
                 index: this.index,
                 data: line,
               });
           }
       });
-      this.process.on("close", () => {
-        this.getWindow().webContents.send("service-stopped", this.index);
+      this.process.on("close", (code) => {
+        this.window.webContents.send("service-stopped", this.index);
         this.status = $.services![this.index].status = ServiceStatus.STOPPED;
-        if (this.config.mode === "PRODUCTION") this.spawn(...argv);
+        if (code && this.config.mode === "PRODUCTION") this.spawn(...argv);
       });
     }
     kill(sig: any) {
