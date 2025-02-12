@@ -1,0 +1,11 @@
+{
+  "nvm": "",
+  "services": [
+    {
+      "name": "",
+      "main": "",
+      "nodeVersion": "",
+      "mode": "DEVELOPMENT"
+    }
+  ]
+}

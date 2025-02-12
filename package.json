@@ -1,29 +1,37 @@
 {
   "name": "integrated-services-manager",
   "version": "0.0.1",
-  "main": "dist/index",
+  "main": "dist/Main",
   "repository": "https://github.com/lshqqytiger/integrated-services-manager.git",
   "author": "Seunghoon Lee <lshqqytiger@naver.com>",
   "license": "MIT",
   "private": true,
   "scripts": {
-    "build": "webpack",
+    "settle": "yarn install && yarn build && node ./check-front.js",
+    "build": "tsc && webpack",
     "start": "electron dist/electron/Main --unsafe-eval"
+  },
+  "frontDependencies": {
+    "font-awesome": "@fortawesome/fontawesome-free",
+    "react": "react/umd",
+    "react-dom": "react-dom/umd"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.1.2",
-    "@types/express": "^4.17.13",
-    "@types/node": "^18.6.3",
-    "@types/react": "^18.0.15",
-    "@types/react-dom": "^18.0.6",
     "ansi-to-html": "^0.7.2",
     "electron": "^20.0.1",
     "express": "^4.18.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "ts-loader": "^9.3.1",
-    "typescript": "^4.7.4",
     "webpack": "^5.74.0",
     "webpack-cli": "^4.10.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.13",
+    "@types/node": "^18.6.3",
+    "@types/react": "^18.0.15",
+    "@types/react-dom": "^18.0.6",
+    "typescript": "^4.7.4"
   }
 }
