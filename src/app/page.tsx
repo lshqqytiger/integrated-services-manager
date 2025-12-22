@@ -1,65 +1,68 @@
-import Image from "next/image";
 import styles from "./page.module.css";
+import ServiceCard from "./ui/service-card";
+import { requireSession } from "./lib/session";
+import { getServiceSettings } from "./lib/settings";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  await requireSession();
+  const { nvmPath, services, stats } = await getServiceSettings();
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
+        <section className={styles.hero}>
+          <p className={styles.kicker}>Integrated Services Manager</p>
+          <h1>Runtime control for every service, in one place.</h1>
           <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
+            Securely start, stop, and inspect every managed Node.js process
+            without touching the CLI.
           </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+        </section>
+
+        <section className={styles.stats}>
+          <div className={styles.statCard}>
+            <p>Total Services</p>
+            <span>{stats.total}</span>
+          </div>
+          <div className={styles.statCard}>
+            <p>Production</p>
+            <span>{stats.production}</span>
+          </div>
+          <div className={styles.statCard}>
+            <p>Development</p>
+            <span>{stats.development}</span>
+          </div>
+          <div className={styles.statCard}>
+            <p>NVM Root</p>
+            <span className={styles.nvmPath}>
+              {nvmPath || "Not configured"}
+            </span>
+          </div>
+        </section>
+
+        <section className={styles.servicesSection}>
+          <header>
+            <h2>Configured Services</h2>
+          </header>
+
+          {services.length === 0 ? (
+            <div className={styles.emptyState}>
+              <p>No services configured yet.</p>
+              <p>
+                Edit <code>data/settings.json</code> to define your first
+                service.
+              </p>
+            </div>
+          ) : (
+            <div className={styles.serviceGrid}>
+              {services.map((service) => (
+                <ServiceCard key={service.id} service={service} />
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );
