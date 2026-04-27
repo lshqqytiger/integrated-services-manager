@@ -56,68 +56,28 @@ function appendLog(id: string, chunk: string) {
   }
 }
 
-async function ensureEntryPointExists(entryPoint: string, serviceName: string) {
+async function ensureWorkingDirectoryExists(root: string, serviceName: string) {
   try {
-    await access(entryPoint);
+    await access(root);
   } catch {
     throw new Error(
-      `Entry point for ${serviceName} not found at ${entryPoint}`,
+      `Working directory for ${serviceName} not found at ${root}`,
     );
   }
 }
 
-function normalizeNodeVersion(version: string): string {
-  const trimmed = version.trim();
-  if (!trimmed) {
-    throw new Error(
-      "nodeVersion is required and must be an explicit version (e.g. 22.13.0)",
-    );
+async function ensureExecutableIfAbsolute(
+  executable: string,
+  serviceName: string,
+) {
+  if (!path.isAbsolute(executable)) {
+    return;
   }
-  if (trimmed.startsWith("v")) {
-    return trimmed;
+  try {
+    await access(executable);
+  } catch {
+    throw new Error(`Executable for ${serviceName} not found at ${executable}`);
   }
-  if (/^\d+\.\d+\.\d+$/.test(trimmed)) {
-    return `v${trimmed}`;
-  }
-  throw new Error(
-    `Invalid nodeVersion \"${version}\". Use an explicit version like 22.13.0`,
-  );
-}
-
-async function resolveNodeExecutable(
-  nvmPath: string,
-  configuredVersion: string,
-): Promise<string> {
-  const normalizedVersion = normalizeNodeVersion(configuredVersion);
-  const candidates =
-    process.platform === "win32"
-      ? [
-          path.join(nvmPath, normalizedVersion, "node.exe"),
-          path.join(nvmPath, normalizedVersion, "node"),
-        ]
-      : [
-          path.join(
-            nvmPath,
-            "versions",
-            "node",
-            normalizedVersion,
-            "bin",
-            "node",
-          ),
-        ];
-
-  for (const executablePath of candidates) {
-    try {
-      await access(executablePath);
-      return executablePath;
-    } catch {
-      continue;
-    }
-  }
-
-  throw new Error(
-    `Node executable not found for version \"${configuredVersion}\" in nvm path \"${nvmPath}\"`,
-  );
 }
 
 export function getProcessStatus(id: string): ServiceStatus {
@@ -132,7 +92,6 @@ export function getProcessLogs(id: string): string[] {
 
 export async function startServiceProcess(
   service: ServiceRuntime,
-  nvmPath: string,
 ): Promise<ServiceActionResult> {
   if (managerStore.processes.has(service.id)) {
     return {
@@ -141,14 +100,11 @@ export async function startServiceProcess(
     };
   }
 
-  await ensureEntryPointExists(service.entryPoint, service.name);
-  const nodeExecutable = await resolveNodeExecutable(
-    nvmPath,
-    service.nodeVersion,
-  );
+  await ensureWorkingDirectoryExists(service.root, service.name);
+  await ensureExecutableIfAbsolute(service.executable, service.name);
 
-  const child = spawn(nodeExecutable, [service.entryPoint, ...service.argv], {
-    cwd: service.rootDir,
+  const child = spawn(service.executable, service.args, {
+    cwd: service.root,
     env: {
       ...process.env,
       SERVICE_NAME: service.name,
@@ -158,7 +114,7 @@ export async function startServiceProcess(
   });
 
   managerStore.processes.set(service.id, { child });
-  appendLog(service.id, `Launching process: ${service.entryPoint}`);
+  appendLog(service.id, `Launching process: ${service.command}`);
 
   child.stdout.on("data", (data: Buffer) =>
     appendLog(service.id, data.toString()),

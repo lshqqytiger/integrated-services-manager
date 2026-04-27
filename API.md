@@ -9,15 +9,17 @@ Base characteristics:
 - Runtime: Next.js App Router route handlers
 - Payload format: JSON unless noted otherwise
 - Authentication: Session cookie (`session_token`) for protected routes
-- Cache policy: Service control and log routes return `Cache-Control: no-store`
+- Cache policy: service control and log routes return `Cache-Control: no-store`
 
 ## Authentication Model
 
-- Login endpoint is public: `POST /api/auth/login`
-- Service endpoints are protected by server-side session checks:
+- Public endpoint:
+  - `POST /api/auth/login`
+- Protected endpoints:
   - `POST /api/services/:id/toggle`
   - `GET /api/services/:id/log`
-- On unauthenticated access to protected handlers, `requireSession()` triggers redirect behavior via Next.js navigation utilities.
+
+Protected handlers use server-side session checks via `requireSession()`.
 
 ## Endpoint: Login
 
@@ -36,7 +38,7 @@ Request body:
 Request notes:
 
 - `hashedPassword` is required.
-- The frontend hashes plaintext password with SHA-512 before sending.
+- Frontend hashes plaintext password with SHA-512 before sending.
 
 Success response:
 
@@ -100,9 +102,9 @@ or
 
 Rate limiting behavior:
 
-- Source IP is derived in order from `x-forwarded-for`, `x-real-ip`, fallback `0.0.0.0`.
-- After 5 failed attempts, IP is blocked for 12 hours.
-- Successful login resets attempt record for that IP.
+- Source IP derives in order from `x-forwarded-for`, `x-real-ip`, fallback `0.0.0.0`.
+- 5 failed attempts block IP for 12 hours.
+- Successful login resets attempt counter for that IP.
 
 ## Endpoint: Toggle Service
 
@@ -120,8 +122,11 @@ Authentication:
 
 Behavior:
 
-- If service is `RUNNING`, handler attempts graceful stop (SIGTERM, then SIGKILL fallback).
-- If service is `STOPPED`, handler spawns process as `node <entryPoint> ...argv`.
+- If service is `RUNNING`, handler attempts graceful stop (SIGTERM then SIGKILL fallback).
+- If service is `STOPPED`, handler starts configured command as:
+  - executable: parsed from first token in `command`
+  - args: parsed from remaining tokens in `command`
+  - cwd: service `root`
 
 Success response:
 
@@ -154,7 +159,7 @@ Error responses:
 }
 ```
 
-or an internal message from thrown runtime errors (for example missing entry file).
+or an internal message from thrown runtime errors (for example missing working directory or missing absolute executable path).
 
 ## Endpoint: Service Logs
 
@@ -168,7 +173,7 @@ Path parameters:
 
 Query parameters:
 
-- `format=plain` (optional): when present and equals `plain`, response is plain text instead of JSON
+- `format=plain` (optional): when present and equal to `plain`, response is plain text instead of JSON
 
 Authentication:
 
@@ -237,7 +242,7 @@ Login request:
 
 ## Operational Notes for API Consumers
 
-- There is no logout endpoint currently; session naturally expires after TTL or on server restart.
-- Session and rate-limit state are in-memory; restarting server resets both.
-- Service IDs are generated from configuration order and names, so changing service names/order can change IDs.
-- API is intended for the bundled UI, but can be consumed programmatically if cookie-based auth is handled.
+- No logout endpoint currently; session expires by TTL or on server restart.
+- Session and rate-limit state are in-memory; restart resets both.
+- Service IDs derive from normalized name and list order, so renaming or reordering services can change IDs.
+- This API is designed for the bundled UI, but can be consumed programmatically with cookie-based authentication.

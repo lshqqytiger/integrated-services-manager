@@ -1,11 +1,10 @@
 {
-  "nvm": "",
   "services": [
     {
       "name": "",
-      "main": "",
-      "nodeVersion": "",
-      "mode": "DEVELOPMENT"
+      "root": "",
+      "command": "",
+      "mode": ""
     }
   ]
 }

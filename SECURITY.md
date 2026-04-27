@@ -4,35 +4,35 @@
 
 Integrated Services Manager is designed for private, single-user operations where the primary goals are:
 
-- Prevent unauthorized access to process controls
-- Reduce brute-force login risk
-- Protect session integrity
-- Limit accidental exposure of sensitive runtime interfaces
+- prevent unauthorized access to process controls
+- reduce brute-force login risk
+- protect session integrity
+- limit accidental exposure of sensitive runtime interfaces
 
-It is not currently designed as a multi-tenant, internet-hardened control plane.
+It is not currently designed as a multi-tenant internet-facing control plane.
 
 ## 2. Trust Boundaries
 
-Primary boundaries in this project:
+Primary boundaries:
 
-- Browser client (untrusted input)
-- Next.js server route handlers (enforcement point)
-- Local process manager and filesystem access
-- Environment secrets (`SYSTEM_PASSWORD`)
+- browser client (untrusted input)
+- Next.js route handlers (enforcement point)
+- local process execution boundary
+- environment secret boundary (`SYSTEM_PASSWORD`)
 
-All privileged actions (start/stop/log access) are enforced on server handlers via session validation.
+All privileged actions (start, stop, log access) are enforced server-side via session checks.
 
 ## 3. Authentication and Session Design
 
 ### Password handling
 
 - Server reads `SYSTEM_PASSWORD` from environment.
-- Server computes SHA-512 hash and compares with `hashedPassword` provided by client.
+- Server computes SHA-512 hash and compares to client `hashedPassword`.
 - Client sends SHA-512 hash of password instead of plaintext.
 
 Important caveat:
 
-- Client-side hashing is not a replacement for HTTPS. The hash is effectively a bearer secret for authentication if intercepted.
+- Client-side hashing does not replace TLS. Intercepted hash is effectively a reusable credential.
 
 ### Session token format
 
@@ -48,9 +48,9 @@ Important caveat:
 - HMAC-SHA512 over payload
 - Constant-time signature comparison (`timingSafeEqual`) when lengths match
 - Validation checks:
-  - token format and decode validity
+  - token shape and decode validity
   - signature validity
-  - payload field integrity
+  - payload integrity
   - version match
   - expiration (12-hour TTL)
 
@@ -69,11 +69,11 @@ Important caveat:
 
 ## 4. Brute Force and Abuse Controls
 
-Login endpoint enforces in-memory IP attempt tracking:
+Login endpoint applies in-memory IP attempt tracking:
 
-- Maximum failed attempts: 5
-- Block duration: 12 hours
-- Success resets the IP record
+- maximum failed attempts: 5
+- block duration: 12 hours
+- successful login resets IP attempt record
 
 IP extraction priority:
 
@@ -83,8 +83,8 @@ IP extraction priority:
 
 Operational caveats:
 
-- State is in-memory and resets on restart.
-- Correctness of forwarded headers depends on trusted reverse proxy setup.
+- state is in-memory and resets on restart
+- forwarded header trust depends on reverse proxy configuration
 
 ## 5. Authorization Controls
 
@@ -95,67 +95,70 @@ Protected endpoints:
 
 Control logic:
 
-- Session is required before service lookup/action.
-- Service ID is resolved server-side against normalized settings snapshot.
-- Unknown IDs return 404.
+- session required before service lookup or action
+- service ID resolved server-side against normalized settings snapshot
+- unknown IDs return 404
 
 ## 6. Process Control Risk Surface
 
-Service actions can spawn and terminate local Node.js processes.
+Service actions can execute arbitrary commands defined in configuration.
 
 Current guardrails:
 
-- Entry file existence check before spawn
-- Controlled spawn form: `node <entry> ...argv`
-- Environment injection limited to inherited env plus `SERVICE_NAME` and `SERVICE_MODE`
-- Graceful stop via SIGTERM with SIGKILL escalation after timeout
+- working directory existence check before spawn
+- absolute executable existence check before spawn
+- execution uses parsed command tokens (`executable` + `args`)
+- injected environment additions limited to `SERVICE_NAME` and `SERVICE_MODE`
+- graceful stop via SIGTERM, then SIGKILL escalation after timeout
 
 Residual risks:
 
-- If settings file is compromised, attacker can point to arbitrary executable JS entry paths.
-- Child processes inherit server environment variables by default.
+- if `data/settings.json` is compromised, attacker can execute arbitrary commands
+- child processes inherit server environment variables by default
+- relative executable names resolve through PATH, which may differ by host
 
 ## 7. Data Exposure Considerations
 
 ### Logs
 
-- Logs are collected from child stdout/stderr and retained in memory (max 2000 lines/service).
-- Logs may contain secrets emitted by managed services.
-- Logs are retrievable to any authenticated session holder.
+- logs are captured from child stdout and stderr
+- logs are retained in memory only (max 2000 lines per service)
+- logs may contain secrets emitted by managed applications
+- logs are available to authenticated sessions
 
 ### Error messages
 
-- Some 500 responses include internal error messages (for example missing entry path).
-- Useful for diagnostics, but can expose internal paths/context.
+- some 500 responses include internal error details (paths, command failures)
+- useful for diagnostics but can expose host context
 
 ## 8. Current Limitations
 
-- No logout endpoint
-- No CSRF token mechanism
-- No MFA, no account model, no RBAC
-- No persistent audit trail for control actions
-- In-memory security state (sessions, attempt store) is not durable or shared
+- no logout endpoint
+- no CSRF token mechanism
+- no MFA, account model, or RBAC
+- no persistent audit trail for actions
+- in-memory security state is not durable or shared across instances
 
 ## 9. Deployment Guidance (Minimum)
 
-Recommended baseline for production-like environments:
+Recommended baseline:
 
-1. Serve only over HTTPS.
-2. Place behind a trusted reverse proxy and sanitize forwarding headers.
-3. Restrict network access (VPN, private subnet, IP allowlist).
-4. Use strong `SYSTEM_PASSWORD` and secure secret management.
-5. Avoid logging secrets in managed services.
-6. Run with least-privilege OS user and constrained filesystem permissions.
-7. Monitor failed login patterns and process-control events externally.
+1. Serve over HTTPS only.
+2. Place behind trusted reverse proxy and sanitize forwarding headers.
+3. Restrict network access (VPN, private subnet, allowlist).
+4. Use strong `SYSTEM_PASSWORD` and secret management.
+5. Protect `data/settings.json` with strict file permissions.
+6. Avoid logging secrets in managed applications.
+7. Run with least-privilege OS user and constrained filesystem permissions.
 
 ## 10. Hardening Roadmap
 
 Suggested next controls:
 
-1. Add explicit logout endpoint and server-side session revocation list.
-2. Move session and IP-attempt state to Redis (or equivalent shared store).
+1. Add logout endpoint and server-side session revocation.
+2. Move session and IP-attempt state to Redis (or equivalent).
 3. Add CSRF protection for state-changing endpoints.
-4. Introduce structured audit logging for authentication and service actions.
-5. Restrict allowed entry paths to a vetted directory allowlist.
-6. Avoid full env inheritance when spawning child processes; pass minimal env.
-7. Consider second authentication factor for operational actions.
+4. Add structured audit logging for auth and service actions.
+5. Add command allowlist and root-directory allowlist policy.
+6. Reduce environment inheritance for child processes.
+7. Add optional second factor for operational actions.

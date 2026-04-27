@@ -1,15 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ServiceStatus } from "../types";
+import { ServiceMode, ServiceStatus } from "../types";
 import styles from "./service-card.module.css";
 import AnsiToHtml from "ansi-to-html";
+
+interface ProjectConfig {
+  name: string;
+  root: string;
+  command: string;
+  mode: ServiceMode;
+}
 
 interface ServiceControlsProps {
   serviceId: string;
   serviceName: string;
   initialStatus: ServiceStatus;
+  projectConfig: ProjectConfig;
 }
 
 interface ToggleResponse {
@@ -29,14 +37,17 @@ export default function ServiceControls({
   serviceId,
   serviceName,
   initialStatus,
+  projectConfig,
 }: ServiceControlsProps) {
   const router = useRouter();
+  const logBodyRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<ServiceStatus>(initialStatus);
   const [actionMessage, setActionMessage] = useState<string>("");
   const [actionError, setActionError] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [logLoading, setLogLoading] = useState(false);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [logError, setLogError] = useState<string>("");
   const [logLines, setLogLines] = useState<string[]>([]);
   const ansiConverter = useMemo(
@@ -45,7 +56,7 @@ export default function ServiceControls({
         escapeXML: true,
         newline: true,
       }),
-    []
+    [],
   );
   const renderedLogHtml = useMemo(() => {
     if (!logLines.length) {
@@ -53,6 +64,20 @@ export default function ServiceControls({
     }
     return logLines.map((line) => ansiConverter.toHtml(line)).join("\n");
   }, [logLines, ansiConverter]);
+  const renderedProjectConfig = useMemo(
+    () => JSON.stringify(projectConfig, null, 2),
+    [projectConfig],
+  );
+
+  const scrollLogToBottom = useCallback(() => {
+    const logBody = logBodyRef.current;
+    if (!logBody) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      logBody.scrollTop = logBody.scrollHeight;
+    });
+  }, []);
 
   useEffect(() => {
     setStatus(initialStatus);
@@ -87,7 +112,7 @@ export default function ServiceControls({
       router.refresh();
     } catch (error) {
       setActionError(
-        error instanceof Error ? error.message : "Unable to update service"
+        error instanceof Error ? error.message : "Unable to update service",
       );
     } finally {
       setLoading(false);
@@ -116,7 +141,7 @@ export default function ServiceControls({
         setLogError("");
       } catch (error) {
         setLogError(
-          error instanceof Error ? error.message : "Unable to load logs"
+          error instanceof Error ? error.message : "Unable to load logs",
         );
       } finally {
         if (showSpinner) {
@@ -124,7 +149,7 @@ export default function ServiceControls({
         }
       }
     },
-    [serviceId, logDialogOpen]
+    [serviceId, logDialogOpen],
   );
 
   useEffect(() => {
@@ -139,6 +164,13 @@ export default function ServiceControls({
 
     return () => clearInterval(interval);
   }, [logDialogOpen, fetchLogs]);
+
+  useEffect(() => {
+    if (!logDialogOpen || logLoading) {
+      return;
+    }
+    scrollLogToBottom();
+  }, [logDialogOpen, logLines, logLoading, scrollLogToBottom]);
 
   const openLogDialog = () => {
     setLogDialogOpen(true);
@@ -156,8 +188,16 @@ export default function ServiceControls({
     window.open(
       `/api/services/${serviceId}/log?format=plain`,
       "_blank",
-      "noopener,noreferrer"
+      "noopener,noreferrer",
     );
+  };
+
+  const openConfigDialog = () => {
+    setConfigDialogOpen(true);
+  };
+
+  const closeConfigDialog = () => {
+    setConfigDialogOpen(false);
   };
 
   return (
@@ -172,8 +212,8 @@ export default function ServiceControls({
           {loading
             ? "Working..."
             : status === ServiceStatus.RUNNING
-            ? "Stop"
-            : "Start"}
+              ? "Stop"
+              : "Start"}
         </button>
         <button
           type="button"
@@ -183,9 +223,44 @@ export default function ServiceControls({
         >
           {logLoading ? "Loading..." : "Show Log"}
         </button>
+        <button
+          type="button"
+          onClick={openConfigDialog}
+          className={`${styles.controlButton} ${styles.secondaryButton}`}
+        >
+          Project Config
+        </button>
       </div>
       {actionMessage && <p className={styles.statusMessage}>{actionMessage}</p>}
       {actionError && <p className={styles.errorMessage}>{actionError}</p>}
+
+      {configDialogOpen && (
+        <div className={styles.logOverlay} onClick={closeConfigDialog}>
+          <div
+            className={styles.logDialog}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className={styles.logHeader}>
+              <div>
+                <p className={styles.logTitle}>{serviceName} Configuration</p>
+                <p className={styles.logSubtitle}>Source: data/settings.json</p>
+              </div>
+              <div className={styles.dialogActions}>
+                <button
+                  type="button"
+                  className={styles.iconButton}
+                  onClick={closeConfigDialog}
+                >
+                  Close
+                </button>
+              </div>
+            </header>
+            <div className={styles.logBody}>
+              <pre className={styles.logContent}>{renderedProjectConfig}</pre>
+            </div>
+          </div>
+        </div>
+      )}
 
       {logDialogOpen && (
         <div className={styles.logOverlay} onClick={closeLogDialog}>
@@ -217,7 +292,7 @@ export default function ServiceControls({
                 </button>
               </div>
             </header>
-            <div className={styles.logBody}>
+            <div ref={logBodyRef} className={styles.logBody}>
               {logLoading ? (
                 <p>Loading logs...</p>
               ) : logError ? (

@@ -19,15 +19,19 @@ function formatStatus(status: ServiceStatus) {
 
 export default function ServiceCard({ service }: ServiceCardProps) {
   const isRunning = service.status === ServiceStatus.RUNNING;
-  const argsPreview = service.argv.length ? service.argv.join(" ") : "—";
+  const projectConfig = {
+    name: service.name,
+    root: service.root,
+    command: service.command,
+    mode: service.mode,
+  };
+
   return (
     <article className={styles.card}>
       <header className={styles.header}>
         <div>
           <p className={styles.serviceName}>{service.name}</p>
-          <p className={styles.serviceVersion}>
-            {service.version ? `Version ${service.version}` : "Version pending"}
-          </p>
+          <p className={styles.serviceVersion}>{service.root}</p>
         </div>
         <span
           className={`${styles.statusBadge} ${
@@ -38,33 +42,12 @@ export default function ServiceCard({ service }: ServiceCardProps) {
         </span>
       </header>
 
-      <dl className={styles.metaList}>
-        <div className={styles.metaItem}>
-          <dt className={styles.metaLabel}>Node version</dt>
-          <dd>{service.nodeVersion}</dd>
-        </div>
-        <div className={styles.metaItem}>
-          <dt className={styles.metaLabel}>Arguments</dt>
-          <dd>{argsPreview}</dd>
-        </div>
-        <div className={styles.metaItem}>
-          <dt className={styles.metaLabel}>Entry point</dt>
-          <dd>{service.entryPoint}</dd>
-        </div>
-        <div className={styles.metaItem}>
-          <dt className={styles.metaLabel}>Mode</dt>
-          <dd>{service.mode}</dd>
-        </div>
-      </dl>
-
       <div className={styles.footer}>
-        <div className={styles.footerInfo}>
-          <span className={styles.modeTag}>{service.mode}</span>
-        </div>
         <ServiceControls
           serviceId={service.id}
           serviceName={service.name}
           initialStatus={service.status}
+          projectConfig={projectConfig}
         />
       </div>
     </article>

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   await requireSession();
-  const { nvmPath, services, stats } = await getServiceSettings();
+  const { services, stats } = await getServiceSettings();
 
   return (
     <div className={styles.page}>
@@ -16,8 +16,8 @@ export default async function Home() {
           <p className={styles.kicker}>Integrated Services Manager</p>
           <h1>Runtime control for every service, in one place.</h1>
           <p>
-            Securely start, stop, and inspect every managed Node.js process
-            without touching the CLI.
+            Securely start, stop, and inspect every managed process without
+            touching the CLI.
           </p>
         </section>
 
@@ -33,12 +33,6 @@ export default async function Home() {
           <div className={styles.statCard}>
             <p>Development</p>
             <span>{stats.development}</span>
-          </div>
-          <div className={styles.statCard}>
-            <p>NVM Root</p>
-            <span className={styles.nvmPath}>
-              {nvmPath || "Not configured"}
-            </span>
           </div>
         </section>
 

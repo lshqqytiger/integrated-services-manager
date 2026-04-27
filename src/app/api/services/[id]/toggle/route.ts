@@ -18,7 +18,7 @@ export async function POST(_: Request, context: RouteContext) {
   await requireSession();
 
   const { id: serviceId } = await context.params;
-  const { nvmPath, services } = await getServiceSettings();
+  const { services } = await getServiceSettings();
   const service = services.find((candidate) => candidate.id === serviceId);
 
   if (!service) {
@@ -30,7 +30,7 @@ export async function POST(_: Request, context: RouteContext) {
   try {
     const result = isRunning
       ? await stopServiceProcess(serviceId)
-      : await startServiceProcess(service, nvmPath);
+      : await startServiceProcess(service);
 
     return NextResponse.json(result, {
       headers: {

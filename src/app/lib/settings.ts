@@ -11,16 +11,13 @@ import { getProcessStatus } from "./service-manager";
 
 const SETTINGS_PATH = path.join(process.cwd(), "data", "settings.json");
 const SERVICES_ROOT = path.join(process.cwd(), "services");
-const DEFAULT_ENTRY = "dist/index.js";
 
 export interface ServiceSettingsSnapshot {
-  nvmPath: string;
   services: ServiceRuntime[];
   stats: ServiceStatsSnapshot;
 }
 
 type BaseSettingsSnapshot = {
-  nvmPath: string;
   services: ServiceRuntime[];
 };
 
@@ -28,7 +25,7 @@ let cachedSnapshot: BaseSettingsSnapshot | null = null;
 let cachedMtime = 0;
 
 export async function getServiceSettings(
-  forceReload = false
+  forceReload = false,
 ): Promise<ServiceSettingsSnapshot> {
   const fileStats = await safeStat(SETTINGS_PATH);
 
@@ -41,14 +38,13 @@ export async function getServiceSettings(
     const parsed = parseSettings(raw);
     const services = parsed.services.map(normalizeService);
     cachedSnapshot = {
-      nvmPath: parsed.nvm,
       services,
     };
     cachedMtime = fileStats?.mtimeMs ?? Date.now();
   }
 
   if (!cachedSnapshot) {
-    return { nvmPath: "", services: [], stats: summarizeServices([]) };
+    return { services: [], stats: summarizeServices([]) };
   }
 
   const servicesWithRuntimeState = cachedSnapshot.services.map((service) => ({
@@ -57,7 +53,6 @@ export async function getServiceSettings(
   }));
 
   return {
-    nvmPath: cachedSnapshot.nvmPath,
     services: servicesWithRuntimeState,
     stats: summarizeServices(servicesWithRuntimeState),
   };
@@ -74,7 +69,7 @@ function summarizeServices(services: ServiceRuntime[]): ServiceStatsSnapshot {
       }
       return acc;
     },
-    { total: 0, production: 0, development: 0 }
+    { total: 0, production: 0, development: 0 },
   );
 }
 
@@ -85,7 +80,6 @@ function parseSettings(raw: string): SettingsFile {
       ? (parsed.services as RawServiceDefinition[])
       : [];
     return {
-      nvm: parsed?.nvm?.trim() || "",
       services,
     };
   } catch (error) {
@@ -93,56 +87,68 @@ function parseSettings(raw: string): SettingsFile {
   }
 }
 
+function parseCommand(command: string): { executable: string; args: string[] } {
+  const tokens = command.match(/"([^"\\]|\\.)*"|'([^'\\]|\\.)*'|[^\s]+/g) ?? [];
+  if (tokens.length === 0) {
+    throw new Error("Service command is empty.");
+  }
+
+  const normalizedTokens = tokens.map((token) => {
+    if (token.startsWith('"') && token.endsWith('"')) {
+      return token.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+    }
+    if (token.startsWith("'") && token.endsWith("'")) {
+      return token.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, "\\");
+    }
+    return token;
+  });
+
+  return {
+    executable: normalizedTokens[0],
+    args: normalizedTokens.slice(1),
+  };
+}
+
 function normalizeService(
   service: RawServiceDefinition,
-  index: number
+  index: number,
 ): ServiceRuntime {
-  const name = service.name?.trim() || `Service ${index + 1}`;
+  const name = String(service.name ?? "").trim() || `Service ${index + 1}`;
   const id = createStableIdentifier(name, index);
-  const folderSlug = sanitizeFolderName(name);
-  const defaultRoot = path.join(SERVICES_ROOT, folderSlug);
-  const entryCandidate = service.main?.trim() || DEFAULT_ENTRY;
-  let rootDir = defaultRoot;
-  let entryPoint = entryCandidate;
-
-  if (path.isAbsolute(entryCandidate)) {
-    entryPoint = entryCandidate;
-    rootDir = path.dirname(entryPoint);
-  } else {
-    entryPoint = path.join(rootDir, entryCandidate);
+  const folderSlug = toSlug(name) || "service";
+  const rootValue = String(service.root ?? "").trim();
+  const root = rootValue
+    ? path.resolve(rootValue)
+    : path.join(SERVICES_ROOT, folderSlug);
+  const command = String(service.command ?? "").trim();
+  if (!command) {
+    throw new Error(`Service \"${name}\" is missing a command.`);
   }
+  const { executable, args } = parseCommand(command);
 
   return {
     id,
     name,
-    main: entryCandidate,
-    nodeVersion: service.nodeVersion?.trim() || "lts",
+    root,
+    command,
     mode: service.mode === "PRODUCTION" ? "PRODUCTION" : "DEVELOPMENT",
-    version: service.version?.trim(),
-    argv: Array.isArray(service.argv) ? service.argv.map(String) : [],
+    executable,
+    args,
     status: ServiceStatus.STOPPED,
-    rootDir,
-    entryPoint,
   };
 }
 
 function createStableIdentifier(name: string, index: number): string {
-  const slugBase = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  const safeSlug = slugBase || "service";
+  const safeSlug = toSlug(name) || "service";
   return `${safeSlug}-${index + 1}`;
 }
 
-function sanitizeFolderName(name: string): string {
-  return (
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .replace(/-+/g, "-") || "service"
-  );
+function toSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-+/g, "-");
 }
 
 async function safeReadFile(filePath: string): Promise<string> {
@@ -152,8 +158,8 @@ async function safeReadFile(filePath: string): Promise<string> {
     throw new Error(
       `Unable to read ${path.relative(
         process.cwd(),
-        filePath
-      )}. Did you create data/settings.json?`
+        filePath,
+      )}. Did you create data/settings.json?`,
     );
   }
 }

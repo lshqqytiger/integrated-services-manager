@@ -2,16 +2,16 @@
 
 ## 1. Purpose and Scope
 
-Integrated Services Manager is a single-user Next.js dashboard for controlling local Node.js services.
+Integrated Services Manager is a single-user Next.js dashboard for controlling local processes across multiple runtimes (Node.js, Rust binaries, Java apps, shell scripts, and others).
 
 Core capabilities:
 
 - Authenticate with a password gate
 - Read service definitions from `data/settings.json`
-- Start/stop service processes
+- Start and stop configured processes
 - Stream and view in-memory process logs
 
-The application is designed for private/internal use, not multi-tenant SaaS.
+The application is designed for private and internal operation, not multi-tenant SaaS.
 
 ## 2. High-Level Architecture
 
@@ -19,77 +19,77 @@ Runtime is split between:
 
 - Next.js App Router server components and API routes (`src/app/**`)
 - Browser client components for interactivity (`src/app/ui/**`, `src/app/login/login-form.tsx`)
-- In-memory runtime stores for sessions/processes/logs/IP attempts
+- In-memory runtime stores for sessions, process handles, logs, and IP attempt tracking
 - JSON file configuration (`data/settings.json`)
 
 Main boundaries:
 
-- UI never starts/stops processes directly; it calls authenticated API routes.
-- API routes never trust client state; they resolve service IDs server-side from normalized settings.
-- Process and log state are ephemeral and tied to the Node.js process hosting Next.js.
+- UI never starts or stops processes directly; it calls authenticated API routes.
+- API routes do not trust client state; they resolve service IDs server-side from normalized settings.
+- Process and log state is ephemeral and tied to the running Next.js server process.
 
 ## 3. Directory Responsibilities
 
 - `src/app/page.tsx`
   - Authenticated dashboard page (server component)
-  - Loads settings + runtime status snapshot
+  - Loads settings and runtime status snapshot
 - `src/app/login/page.tsx`, `src/app/login/login-form.tsx`
-  - Login page and client-side submit flow
+  - Login page and client submit flow
 - `src/app/api/auth/login/route.ts`
   - Login endpoint, IP throttling, session cookie issuance
 - `src/app/api/services/[id]/toggle/route.ts`
-  - Start/stop toggle endpoint
+  - Start and stop toggle endpoint
 - `src/app/api/services/[id]/log/route.ts`
-  - Log retrieval endpoint (JSON/plain text)
+  - Log retrieval endpoint (JSON or plain text)
 - `src/app/lib/auth.ts`
-  - Password hash source, session token signing/verification, cookie options
+  - Password hash source, session token signing and verification, cookie options
 - `src/app/lib/session.ts`
   - Route guards (`requireSession`, `redirectIfAuthenticated`)
 - `src/app/lib/settings.ts`
-  - Loads/parses/caches settings, normalizes service runtime fields
+  - Loads, validates, and normalizes service definitions from JSON
 - `src/app/lib/service-manager.ts`
   - Child process lifecycle and log buffering
 - `src/app/lib/ip-blocklist.ts`
-  - In-memory failed-attempt tracking and temporary blocking
+  - In-memory failed-attempt tracking and temporary IP blocking
 - `src/app/types.ts`
-  - Shared contracts for services/runtime actions
+  - Shared contracts for settings, runtime, and API results
 
 ## 4. Request and Control Flows
 
 ### 4.1 Login Flow
 
-1. User submits password on login form.
-2. Browser hashes password with SHA-512 (`crypto.subtle.digest`) and sends `hashedPassword`.
-3. `POST /api/auth/login` compares value to server-side `SYSTEM_PASSWORD` SHA-512 hash.
+1. User submits password on the login form.
+2. Browser hashes the password with SHA-512 (`crypto.subtle.digest`) and sends `hashedPassword`.
+3. `POST /api/auth/login` compares it to the server-side `SYSTEM_PASSWORD` hash.
 4. On success, server sets HTTP-only session cookie (`session_token`) and returns `{ ok: true }`.
 5. On failure, server increments per-IP attempt count and may return 429 when blocked.
 
 Notes:
 
 - Session TTL is 12 hours.
-- Session signature uses HMAC-SHA512 over payload.
-- Signing secret combines password hash + per-runtime random secret; restart invalidates all active sessions.
+- Session signature uses HMAC-SHA512 over a compact payload.
+- Signing secret combines password hash and a per-runtime random secret; restart invalidates active sessions.
 
 ### 4.2 Dashboard Load Flow
 
 1. `src/app/page.tsx` calls `requireSession()`.
-2. If session invalid/missing, user is redirected to `/login`.
-3. On valid session, `getServiceSettings()` loads/caches definitions and overlays live process status (`RUNNING`/`STOPPED`).
-4. Server component renders cards and aggregate stats.
+2. If session is invalid or missing, user is redirected to `/login`.
+3. On valid session, `getServiceSettings()` loads and caches service definitions, then overlays live runtime status (`RUNNING` or `STOPPED`).
+4. Server component renders cards and aggregate mode stats.
 
 ### 4.3 Service Toggle Flow
 
 1. Client component calls `POST /api/services/:id/toggle`.
 2. Endpoint enforces `requireSession()`.
-3. Endpoint resolves service by ID from current settings snapshot.
-4. If running, stop via `stopServiceProcess`; otherwise start via `startServiceProcess`.
+3. Endpoint resolves service by ID from current normalized settings snapshot.
+4. If running, it stops via `stopServiceProcess`; otherwise it starts via `startServiceProcess`.
 5. Response includes `ServiceActionResult` (`status`, `message`).
 
 ### 4.4 Log Flow
 
 1. Client opens log dialog and polls `GET /api/services/:id/log` every 3 seconds.
-2. Endpoint enforces session, resolves service ID, returns current log buffer.
-3. Optional `?format=plain` returns text for opening logs in a new tab.
+2. Endpoint enforces session, resolves service ID, and returns current log buffer.
+3. Optional `?format=plain` returns plain text for opening logs in a separate tab.
 
 ## 5. Configuration and Normalization
 
@@ -99,15 +99,12 @@ Expected shape:
 
 ```json
 {
-  "nvm": "<path>",
   "services": [
     {
-      "name": "service-name",
-      "main": "dist/index.js",
-      "nodeVersion": "lts",
-      "mode": "DEVELOPMENT",
-      "version": "optional",
-      "argv": ["optional", "args"]
+      "name": "hello-world",
+      "root": "/absolute/path/to/service",
+      "command": "/usr/bin/node index.js",
+      "mode": "DEVELOPMENT"
     }
   ]
 }
@@ -116,11 +113,12 @@ Expected shape:
 Normalization behavior (`settings.ts`):
 
 - Service `id` is generated as `<slug>-<1-based-index>`.
-- `rootDir` defaults to `services/<slug>/`.
-- Relative `main` becomes `<rootDir>/<main>`.
-- Absolute `main` keeps absolute path and sets `rootDir` to `dirname(main)`.
+- `root` defaults to `services/<slug>` when omitted.
+- `command` is tokenized into:
+  - `executable` (first token)
+  - `args` (remaining tokens)
+- Quoted segments in `command` are preserved as single tokens.
 - `mode` defaults to `DEVELOPMENT` unless exactly `PRODUCTION`.
-- `argv` coerced to string array.
 
 Caching behavior:
 
@@ -135,22 +133,23 @@ Caching behavior:
 
 Start semantics:
 
-- Verifies entry file exists.
-- Spawns process as: `node <entryPoint> ...argv`
-- `cwd` is service `rootDir`.
+- Verifies working directory exists.
+- If `executable` is an absolute path, verifies it exists.
+- Spawns process as: `<executable> <args...>`
+- Sets `cwd` to service `root`.
 - Injects `SERVICE_NAME` and `SERVICE_MODE` into child environment.
-- Captures `stdout`/`stderr` and appends timestamped lines.
+- Captures `stdout` and `stderr` and appends timestamped lines.
 
 Stop semantics:
 
 - Sends `SIGTERM` first.
 - Escalates to `SIGKILL` after 7 seconds if needed.
-- Cleans up process map entry on exit/error.
+- Cleans process map entry on exit and error.
 
 Log semantics:
 
 - Per-service ring buffer capped at 2000 lines.
-- Log history is volatile and lost on restart.
+- Log history is volatile and lost on server restart.
 
 ## 7. Security Model
 
@@ -159,14 +158,14 @@ Implemented protections:
 - HTTP-only signed session cookie
 - Server-side session verification for dashboard and service APIs
 - Password not transmitted in plaintext (client sends SHA-512 hash)
-- In-memory IP throttling: 5 failures -> 12-hour block
-- `SameSite=Lax` cookies; `Secure` only in production
+- In-memory IP throttling: 5 failures then 12-hour block
+- `SameSite=Lax` cookies and `Secure` in production
 
 Security caveats:
 
-- Client-side hashing does not replace TLS; HTTPS is still required in deployment.
-- In-memory stores mean auth/session/IP lock state resets on server restart.
-- No CSRF token mechanism; design assumes constrained single-user/private network context.
+- Client-side hashing does not replace TLS; HTTPS is still required.
+- In-memory stores mean auth, session, and lock state reset on restart.
+- No CSRF token mechanism; design assumes constrained private access.
 
 ## 8. Operational Constraints
 
@@ -174,19 +173,19 @@ This implementation intentionally prioritizes simplicity:
 
 - Not horizontally scalable (state is process-local memory).
 - Not durable (running process map and logs are ephemeral).
-- Uses current Node executable (`process.execPath`), not per-service Node version switching.
-- `nvm` path is displayed in UI stats but not applied by spawn logic.
+- Command execution is configuration-driven; correctness and safety depend on controlling `data/settings.json`.
+- Child processes inherit server environment variables.
 
 ## 9. Extension Points
 
 Practical next evolutions:
 
-- Persist process/log metadata to an external store.
-- Replace in-memory auth/session/attempt tracking with Redis or database.
-- Introduce per-service runtime adapters (pm2, docker, systemd, or SSH).
-- Implement health checks and restart policies.
-- Add RBAC/user accounts if moving beyond single-user mode.
-- Add structured audit trail for start/stop and login events.
+- Persist process and log metadata to external storage.
+- Replace in-memory auth and attempt tracking with Redis or a database.
+- Introduce runtime adapters (docker, systemd, ssh, Kubernetes jobs).
+- Add health checks and restart policies.
+- Add RBAC and user accounts for multi-operator scenarios.
+- Add structured audit trail for login and process actions.
 
 ## 10. Quick Reference
 
@@ -197,8 +196,8 @@ Environment:
 Public endpoints:
 
 - `POST /api/auth/login`
-- `POST /api/services/:id/toggle` (auth required)
-- `GET /api/services/:id/log` (auth required)
+- `POST /api/services/:id/toggle` (authenticated)
+- `GET /api/services/:id/log` (authenticated)
 
 Session constants:
 

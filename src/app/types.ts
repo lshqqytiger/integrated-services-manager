@@ -2,19 +2,16 @@ export type ServiceMode = "PRODUCTION" | "DEVELOPMENT";
 
 export interface ServiceDefinition {
   name: string;
-  main: string;
-  nodeVersion: string;
+  root: string;
+  command: string;
   mode: ServiceMode;
-  version?: string;
-  argv?: string[];
 }
 
-export type RawServiceDefinition = Partial<Omit<ServiceDefinition, "argv">> & {
-  argv?: unknown;
-};
+export type RawServiceDefinition = Partial<
+  Record<keyof ServiceDefinition, unknown>
+>;
 
 export interface SettingsFile {
-  nvm: string;
   services: RawServiceDefinition[];
 }
 
@@ -25,10 +22,9 @@ export enum ServiceStatus {
 
 export interface ServiceRuntime extends ServiceDefinition {
   id: string;
-  argv: string[];
+  executable: string;
+  args: string[];
   status: ServiceStatus;
-  rootDir: string;
-  entryPoint: string;
 }
 
 export interface ServiceStatsSnapshot {
