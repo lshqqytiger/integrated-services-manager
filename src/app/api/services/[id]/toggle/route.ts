@@ -18,7 +18,7 @@ export async function POST(_: Request, context: RouteContext) {
   await requireSession();
 
   const { id: serviceId } = await context.params;
-  const { services } = await getServiceSettings();
+  const { nvmPath, services } = await getServiceSettings();
   const service = services.find((candidate) => candidate.id === serviceId);
 
   if (!service) {
@@ -30,7 +30,7 @@ export async function POST(_: Request, context: RouteContext) {
   try {
     const result = isRunning
       ? await stopServiceProcess(serviceId)
-      : await startServiceProcess(service);
+      : await startServiceProcess(service, nvmPath);
 
     return NextResponse.json(result, {
       headers: {
@@ -40,7 +40,7 @@ export async function POST(_: Request, context: RouteContext) {
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message || "Unable to toggle service" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

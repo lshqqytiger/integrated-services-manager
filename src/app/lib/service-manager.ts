@@ -1,4 +1,5 @@
 import { access } from "node:fs/promises";
+import path from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
 import {
   ServiceStatus,
@@ -60,9 +61,63 @@ async function ensureEntryPointExists(entryPoint: string, serviceName: string) {
     await access(entryPoint);
   } catch {
     throw new Error(
-      `Entry point for ${serviceName} not found at ${entryPoint}`
+      `Entry point for ${serviceName} not found at ${entryPoint}`,
     );
   }
+}
+
+function normalizeNodeVersion(version: string): string {
+  const trimmed = version.trim();
+  if (!trimmed) {
+    throw new Error(
+      "nodeVersion is required and must be an explicit version (e.g. 22.13.0)",
+    );
+  }
+  if (trimmed.startsWith("v")) {
+    return trimmed;
+  }
+  if (/^\d+\.\d+\.\d+$/.test(trimmed)) {
+    return `v${trimmed}`;
+  }
+  throw new Error(
+    `Invalid nodeVersion \"${version}\". Use an explicit version like 22.13.0`,
+  );
+}
+
+async function resolveNodeExecutable(
+  nvmPath: string,
+  configuredVersion: string,
+): Promise<string> {
+  const normalizedVersion = normalizeNodeVersion(configuredVersion);
+  const candidates =
+    process.platform === "win32"
+      ? [
+          path.join(nvmPath, normalizedVersion, "node.exe"),
+          path.join(nvmPath, normalizedVersion, "node"),
+        ]
+      : [
+          path.join(
+            nvmPath,
+            "versions",
+            "node",
+            normalizedVersion,
+            "bin",
+            "node",
+          ),
+        ];
+
+  for (const executablePath of candidates) {
+    try {
+      await access(executablePath);
+      return executablePath;
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error(
+    `Node executable not found for version \"${configuredVersion}\" in nvm path \"${nvmPath}\"`,
+  );
 }
 
 export function getProcessStatus(id: string): ServiceStatus {
@@ -76,7 +131,8 @@ export function getProcessLogs(id: string): string[] {
 }
 
 export async function startServiceProcess(
-  service: ServiceRuntime
+  service: ServiceRuntime,
+  nvmPath: string,
 ): Promise<ServiceActionResult> {
   if (managerStore.processes.has(service.id)) {
     return {
@@ -86,8 +142,12 @@ export async function startServiceProcess(
   }
 
   await ensureEntryPointExists(service.entryPoint, service.name);
+  const nodeExecutable = await resolveNodeExecutable(
+    nvmPath,
+    service.nodeVersion,
+  );
 
-  const child = spawn(process.execPath, [service.entryPoint, ...service.argv], {
+  const child = spawn(nodeExecutable, [service.entryPoint, ...service.argv], {
     cwd: service.rootDir,
     env: {
       ...process.env,
@@ -101,16 +161,16 @@ export async function startServiceProcess(
   appendLog(service.id, `Launching process: ${service.entryPoint}`);
 
   child.stdout.on("data", (data: Buffer) =>
-    appendLog(service.id, data.toString())
+    appendLog(service.id, data.toString()),
   );
   child.stderr.on("data", (data: Buffer) =>
-    appendLog(service.id, data.toString())
+    appendLog(service.id, data.toString()),
   );
 
   child.on("exit", (code, signal) => {
     appendLog(
       service.id,
-      `Process exited with code ${code ?? "null"} signal ${signal ?? "null"}`
+      `Process exited with code ${code ?? "null"} signal ${signal ?? "null"}`,
     );
     managerStore.processes.delete(service.id);
   });
@@ -127,7 +187,7 @@ export async function startServiceProcess(
 }
 
 export async function stopServiceProcess(
-  id: string
+  id: string,
 ): Promise<ServiceActionResult> {
   const record = managerStore.processes.get(id);
   if (!record) {
@@ -164,7 +224,7 @@ export async function stopServiceProcess(
     const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
       appendLog(
         id,
-        `Process stopped with code ${code ?? "null"} signal ${signal ?? "null"}`
+        `Process stopped with code ${code ?? "null"} signal ${signal ?? "null"}`,
       );
       clear();
       settle("Process stopped");
@@ -183,7 +243,7 @@ export async function stopServiceProcess(
     if (!signalled) {
       appendLog(
         id,
-        "Unable to deliver SIGTERM; process may have already exited."
+        "Unable to deliver SIGTERM; process may have already exited.",
       );
       clear();
       settle("Unable to signal process");
