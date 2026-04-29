@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { ServiceMode, ServiceStatus } from "../types";
 import styles from "./service-card.module.css";
@@ -31,6 +38,11 @@ interface LogResponse {
   error?: string;
 }
 
+interface StdinResponse {
+  message?: string;
+  error?: string;
+}
+
 const LOG_REFRESH_INTERVAL_MS = 3000;
 
 export default function ServiceControls({
@@ -41,6 +53,12 @@ export default function ServiceControls({
 }: ServiceControlsProps) {
   const router = useRouter();
   const logBodyRef = useRef<HTMLDivElement | null>(null);
+  const terminalInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
+  const previousLogCountRef = useRef(0);
+  const feedbackTimeoutRef = useRef<number | null>(null);
+  const logDialogTitleId = useId();
+  const configDialogTitleId = useId();
   const [status, setStatus] = useState<ServiceStatus>(initialStatus);
   const [actionMessage, setActionMessage] = useState<string>("");
   const [actionError, setActionError] = useState<string>("");
@@ -50,6 +68,11 @@ export default function ServiceControls({
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [logError, setLogError] = useState<string>("");
   const [logLines, setLogLines] = useState<string[]>([]);
+  const [terminalInput, setTerminalInput] = useState("");
+  const [terminalInputSending, setTerminalInputSending] = useState(false);
+  const [terminalInputError, setTerminalInputError] = useState("");
+  const [terminalInputMessage, setTerminalInputMessage] = useState("");
+  const [configCopyMessage, setConfigCopyMessage] = useState("");
   const ansiConverter = useMemo(
     () =>
       new AnsiToHtml({
@@ -64,10 +87,20 @@ export default function ServiceControls({
     }
     return logLines.map((line) => ansiConverter.toHtml(line)).join("\n");
   }, [logLines, ansiConverter]);
-  const renderedProjectConfig = useMemo(
-    () => JSON.stringify(projectConfig, null, 2),
+
+  const configFields = useMemo(
+    () => [
+      { label: "Name", value: projectConfig.name },
+      { label: "Root", value: projectConfig.root },
+      { label: "Command", value: projectConfig.command },
+    ],
     [projectConfig],
   );
+
+  const isNearLogBottom = useCallback((node: HTMLDivElement) => {
+    const distance = node.scrollHeight - node.scrollTop - node.clientHeight;
+    return distance <= 32;
+  }, []);
 
   const scrollLogToBottom = useCallback(() => {
     const logBody = logBodyRef.current;
@@ -79,9 +112,56 @@ export default function ServiceControls({
     });
   }, []);
 
+  const clearFeedbackTimer = useCallback(() => {
+    if (feedbackTimeoutRef.current !== null) {
+      window.clearTimeout(feedbackTimeoutRef.current);
+      feedbackTimeoutRef.current = null;
+    }
+  }, []);
+
+  const flashTerminalMessage = useCallback(
+    (message: string) => {
+      setTerminalInputMessage(message);
+      clearFeedbackTimer();
+      feedbackTimeoutRef.current = window.setTimeout(() => {
+        setTerminalInputMessage("");
+        feedbackTimeoutRef.current = null;
+      }, 2000);
+    },
+    [clearFeedbackTimer],
+  );
+
   useEffect(() => {
     setStatus(initialStatus);
   }, [initialStatus]);
+
+  useEffect(
+    () => () => {
+      clearFeedbackTimer();
+    },
+    [clearFeedbackTimer],
+  );
+
+  useEffect(() => {
+    if (!logDialogOpen && !configDialogOpen) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      if (logDialogOpen) {
+        closeLogDialog();
+      }
+      if (configDialogOpen) {
+        closeConfigDialog();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [logDialogOpen, configDialogOpen]);
 
   const handleToggle = async () => {
     if (status === ServiceStatus.RUNNING) {
@@ -166,22 +246,105 @@ export default function ServiceControls({
   }, [logDialogOpen, fetchLogs]);
 
   useEffect(() => {
-    if (!logDialogOpen || logLoading) {
+    if (!logDialogOpen) {
       return;
     }
+
+    const hasNewLogItem = logLines.length > previousLogCountRef.current;
+    previousLogCountRef.current = logLines.length;
+
+    if (!hasNewLogItem || !shouldAutoScrollRef.current) {
+      return;
+    }
+
     scrollLogToBottom();
-  }, [logDialogOpen, logLines, logLoading, scrollLogToBottom]);
+  }, [logDialogOpen, logLines.length, scrollLogToBottom]);
+
+  useEffect(() => {
+    if (!logDialogOpen || !terminalInputRef.current) {
+      return;
+    }
+    terminalInputRef.current.focus();
+  }, [logDialogOpen]);
+
+  const handleLogBodyScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    shouldAutoScrollRef.current = isNearLogBottom(event.currentTarget);
+  };
+
+  const sendTerminalInput = async () => {
+    const trimmed = terminalInput.trim();
+    if (!trimmed || terminalInputSending) {
+      return;
+    }
+
+    setTerminalInputSending(true);
+    setTerminalInputError("");
+
+    try {
+      const payload = terminalInput.endsWith("\n")
+        ? terminalInput
+        : `${terminalInput}\n`;
+      const response = await fetch(`/api/services/${serviceId}/stdin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ input: payload }),
+        cache: "no-store",
+      });
+      const data = (await response.json()) as StdinResponse;
+      if (!response.ok) {
+        throw new Error(data.error || "Unable to send input");
+      }
+
+      setTerminalInput("");
+      flashTerminalMessage(data.message || "Input sent");
+      await fetchLogs();
+      terminalInputRef.current?.focus();
+    } catch (error) {
+      setTerminalInputError(
+        error instanceof Error ? error.message : "Unable to send input",
+      );
+    } finally {
+      setTerminalInputSending(false);
+    }
+  };
+
+  const handleTerminalKeyDown = (
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+  ) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void sendTerminalInput();
+    }
+  };
+
+  const copyConfigValue = async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setConfigCopyMessage(`${label} copied`);
+    } catch {
+      setConfigCopyMessage("Clipboard is unavailable");
+    }
+  };
 
   const openLogDialog = () => {
     setLogDialogOpen(true);
     setLogError("");
     setLogLines([]);
+    setTerminalInputError("");
+    setTerminalInputMessage("");
+    previousLogCountRef.current = 0;
+    shouldAutoScrollRef.current = true;
   };
 
   const closeLogDialog = () => {
     setLogDialogOpen(false);
     setLogError("");
     setLogLoading(false);
+    setTerminalInput("");
+    setTerminalInputError("");
+    setTerminalInputMessage("");
   };
 
   const openLogInNewTab = () => {
@@ -193,6 +356,7 @@ export default function ServiceControls({
   };
 
   const openConfigDialog = () => {
+    setConfigCopyMessage("");
     setConfigDialogOpen(true);
   };
 
@@ -238,11 +402,16 @@ export default function ServiceControls({
         <div className={styles.logOverlay} onClick={closeConfigDialog}>
           <div
             className={styles.logDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={configDialogTitleId}
             onClick={(event) => event.stopPropagation()}
           >
             <header className={styles.logHeader}>
               <div>
-                <p className={styles.logTitle}>{serviceName} Configuration</p>
+                <p className={styles.logTitle} id={configDialogTitleId}>
+                  {serviceName} Configuration
+                </p>
                 <p className={styles.logSubtitle}>Source: data/settings.json</p>
               </div>
               <div className={styles.dialogActions}>
@@ -250,13 +419,55 @@ export default function ServiceControls({
                   type="button"
                   className={styles.iconButton}
                   onClick={closeConfigDialog}
+                  aria-label="Close configuration dialog"
                 >
                   Close
                 </button>
               </div>
             </header>
             <div className={styles.logBody}>
-              <pre className={styles.logContent}>{renderedProjectConfig}</pre>
+              <div className={styles.configGrid}>
+                {configFields.map((field) => (
+                  <div className={styles.configField} key={field.label}>
+                    <p className={styles.configLabel}>{field.label}</p>
+                    <div className={styles.configValueRow}>
+                      <p className={styles.configValue} title={field.value}>
+                        {field.value}
+                      </p>
+                      <button
+                        type="button"
+                        className={styles.copyButton}
+                        onClick={() =>
+                          copyConfigValue(field.label, field.value)
+                        }
+                        aria-label={`Copy ${field.label}`}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <div className={styles.configField}>
+                  <p className={styles.configLabel}>Mode</p>
+                  <div className={styles.configValueRow}>
+                    <span
+                      className={`${styles.configModeBadge} ${
+                        projectConfig.mode === "PRODUCTION"
+                          ? styles.configModeProduction
+                          : styles.configModeDevelopment
+                      }`}
+                    >
+                      {projectConfig.mode}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {configCopyMessage && (
+                <p className={styles.statusMessage} aria-live="polite">
+                  {configCopyMessage}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -266,11 +477,16 @@ export default function ServiceControls({
         <div className={styles.logOverlay} onClick={closeLogDialog}>
           <div
             className={styles.logDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={logDialogTitleId}
             onClick={(event) => event.stopPropagation()}
           >
             <header className={styles.logHeader}>
               <div>
-                <p className={styles.logTitle}>{serviceName} Log</p>
+                <p className={styles.logTitle} id={logDialogTitleId}>
+                  {serviceName} Terminal
+                </p>
                 <p className={styles.logSubtitle}>
                   Latest {logLines.length} entries
                 </p>
@@ -287,12 +503,17 @@ export default function ServiceControls({
                   type="button"
                   className={styles.iconButton}
                   onClick={closeLogDialog}
+                  aria-label="Close terminal dialog"
                 >
                   Close
                 </button>
               </div>
             </header>
-            <div ref={logBodyRef} className={styles.logBody}>
+            <div
+              ref={logBodyRef}
+              className={styles.logBody}
+              onScroll={handleLogBodyScroll}
+            >
               {logLoading ? (
                 <p>Loading logs...</p>
               ) : logError ? (
@@ -304,6 +525,53 @@ export default function ServiceControls({
                 />
               ) : (
                 <p>No log output captured yet.</p>
+              )}
+            </div>
+
+            <div className={styles.terminalComposer}>
+              <textarea
+                ref={terminalInputRef}
+                value={terminalInput}
+                onChange={(event) => setTerminalInput(event.target.value)}
+                onKeyDown={handleTerminalKeyDown}
+                className={styles.terminalInput}
+                placeholder="Enter sends input, Shift+Enter adds a new line"
+                disabled={
+                  status !== ServiceStatus.RUNNING || terminalInputSending
+                }
+                rows={3}
+                aria-label="Terminal standard input"
+              />
+              <div className={styles.terminalComposerFooter}>
+                <p className={styles.logSubtitle}>
+                  {status === ServiceStatus.RUNNING
+                    ? "Enter to send, Shift+Enter for newline"
+                    : "Service is stopped. Start it to send input."}
+                </p>
+                <button
+                  type="button"
+                  className={`${styles.controlButton} ${styles.secondaryButton}`}
+                  onClick={() => {
+                    void sendTerminalInput();
+                  }}
+                  disabled={
+                    status !== ServiceStatus.RUNNING ||
+                    terminalInputSending ||
+                    !terminalInput.trim().length
+                  }
+                >
+                  {terminalInputSending ? "Sending..." : "Send"}
+                </button>
+              </div>
+              {terminalInputError && (
+                <p className={styles.errorMessage} aria-live="polite">
+                  {terminalInputError}
+                </p>
+              )}
+              {terminalInputMessage && (
+                <p className={styles.statusMessage} aria-live="polite">
+                  {terminalInputMessage}
+                </p>
               )}
             </div>
           </div>

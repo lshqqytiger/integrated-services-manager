@@ -18,6 +18,7 @@ Base characteristics:
 - Protected endpoints:
   - `POST /api/services/:id/toggle`
   - `GET /api/services/:id/log`
+  - `POST /api/services/:id/stdin`
 
 Protected handlers use server-side session checks via `requireSession()`.
 
@@ -206,11 +207,103 @@ Error responses:
 
 - `404 Not Found`
 
+````json
+{
+  "error": "Service not found"
+}
+
+## Endpoint: Service Standard Input
+
+### POST /api/services/:id/stdin
+
+Send text input to a running child process via stdin.
+
+Path parameters:
+
+- `id` (string): normalized service ID
+
+Authentication:
+
+- Required (valid `session_token`)
+
+Request body:
+
+```json
+{
+  "input": "text to write to stdin"
+}
+````
+
+Request notes:
+
+- `input` is required and must be a string.
+- Input is written as UTF-8.
+- The server limit is 16000 characters per request.
+- The UI sends newline-terminated payloads for Enter-based submissions.
+
+Success response:
+
+- Status: `200 OK`
+- Headers: `Cache-Control: no-store`
+- Body:
+
+```json
+{
+  "message": "Input sent"
+}
+```
+
+Error responses:
+
+- `400 Bad Request`
+
+```json
+{
+  "error": "Invalid JSON payload"
+}
+```
+
+or
+
+```json
+{
+  "error": "Input must be a string"
+}
+```
+
+- `404 Not Found`
+
 ```json
 {
   "error": "Service not found"
 }
 ```
+
+- `409 Conflict`
+
+```json
+{
+  "error": "Process is not running."
+}
+```
+
+or
+
+```json
+{
+  "error": "Process stdin is not writable."
+}
+```
+
+or
+
+```json
+{
+  "error": "Input exceeds 16000 characters."
+}
+```
+
+````
 
 ## Data Contracts
 
@@ -221,16 +314,33 @@ Service action result:
   "status": "RUNNING | STOPPED",
   "message": "string"
 }
-```
+````
 
 Log response:
 
-```json
+````json
 {
   "id": "string",
   "log": ["string"]
 }
+
+Stdin request:
+
+```json
+{
+  "input": "string"
+}
+````
+
+Stdin response:
+
+```json
+{
+  "message": "Input sent"
+}
 ```
+
+````
 
 Login request:
 
@@ -238,7 +348,7 @@ Login request:
 {
   "hashedPassword": "sha512-hex-string"
 }
-```
+````
 
 ## Operational Notes for API Consumers
 

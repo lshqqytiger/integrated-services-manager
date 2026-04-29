@@ -10,6 +10,7 @@ Core capabilities:
 - Read service definitions from `data/settings.json`
 - Start and stop configured processes
 - Stream and view in-memory process logs
+- Send terminal stdin to running processes from the dashboard
 
 The application is designed for private and internal operation, not multi-tenant SaaS.
 
@@ -41,6 +42,8 @@ Main boundaries:
   - Start and stop toggle endpoint
 - `src/app/api/services/[id]/log/route.ts`
   - Log retrieval endpoint (JSON or plain text)
+- `src/app/api/services/[id]/stdin/route.ts`
+  - Stdin write endpoint for running services
 - `src/app/lib/auth.ts`
   - Password hash source, session token signing and verification, cookie options
 - `src/app/lib/session.ts`
@@ -91,6 +94,19 @@ Notes:
 2. Endpoint enforces session, resolves service ID, and returns current log buffer.
 3. Optional `?format=plain` returns plain text for opening logs in a separate tab.
 
+UI behavior notes:
+
+- Log output supports Unicode safely across stream chunk boundaries.
+- The log viewer follows output only when new lines are added and the user remains near the bottom.
+
+### 4.5 Terminal Input Flow
+
+1. User enters text in the terminal composer in the log dialog.
+2. Enter submits input, while Shift+Enter inserts newline.
+3. Client sends `POST /api/services/:id/stdin` with `{ input: string }`.
+4. Endpoint enforces session and service lookup, then delegates to process manager stdin writer.
+5. Process manager writes UTF-8 bytes to child stdin when writable.
+
 ## 5. Configuration and Normalization
 
 Source file: `data/settings.json`.
@@ -128,8 +144,14 @@ Caching behavior:
 
 `service-manager.ts` holds global singleton maps:
 
-- `processes: Map<serviceId, ChildProcess>`
+- `processes: Map<serviceId, ManagedProcess>`
 - `logs: Map<serviceId, string[]>`
+
+Managed process shape includes:
+
+- child process handle
+- per-stream UTF-8 decoders (`stdout`, `stderr`)
+- per-stream partial-line remainders for chunk-safe line assembly
 
 Start semantics:
 
@@ -139,6 +161,8 @@ Start semantics:
 - Sets `cwd` to service `root`.
 - Injects `SERVICE_NAME` and `SERVICE_MODE` into child environment.
 - Captures `stdout` and `stderr` and appends timestamped lines.
+- Uses UTF-8 stream decoders and flushes remainder buffers on process exit/error.
+- Enables stdin piping (`stdio: ["pipe", "pipe", "pipe"]`) for terminal input.
 
 Stop semantics:
 
@@ -150,6 +174,11 @@ Log semantics:
 
 - Per-service ring buffer capped at 2000 lines.
 - Log history is volatile and lost on server restart.
+
+Stdin semantics:
+
+- Input writes are accepted only for running services with writable stdin.
+- Input payload limit is 16000 characters per request.
 
 ## 7. Security Model
 

@@ -73,6 +73,9 @@ Runtime behavior:
 - Session tokens expire after 12 hours and are invalidated on server restart.
 - IP throttling blocks after 5 failed login attempts for 12 hours.
 - Process logs are buffered in-memory (last 2000 lines) and exposed through `/api/services/:id/log`.
+- Log decoding is UTF-8 safe across stream chunks, preserving Unicode output.
+- Log dialog follow mode auto-scrolls only when new log lines arrive and the viewer is near the bottom.
+- Standard input can be sent to running services through `/api/services/:id/stdin`.
 
 ## Scripts
 
@@ -89,6 +92,7 @@ Runtime behavior:
 - `src/app/ui/service-card.tsx` and `src/app/ui/service-controls.tsx` - dashboard controls
 - `src/app/api/services/[id]/toggle` - service lifecycle endpoint
 - `src/app/api/services/[id]/log` - service log endpoint
+- `src/app/api/services/[id]/stdin` - service standard input endpoint
 
 ## Docs
 
