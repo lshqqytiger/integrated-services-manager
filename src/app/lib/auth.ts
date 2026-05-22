@@ -8,6 +8,7 @@ import {
 export const SESSION_COOKIE_NAME = "session_token";
 export const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 const TOKEN_VERSION = "v1";
+const NONCE_REGEX = /^[0-9a-f]{64}$/;
 
 declare global {
   // eslint-disable-next-line no-var
@@ -85,7 +86,11 @@ export function verifySessionToken(
     return null;
   }
 
-  const [encodedPayload, providedSignature] = token.split(".");
+  const parts = token.split(".");
+  if (parts.length !== 2) {
+    return null;
+  }
+  const [encodedPayload, providedSignature] = parts;
   if (!encodedPayload || !providedSignature) {
     return null;
   }
@@ -114,7 +119,12 @@ export function verifySessionToken(
     return null;
   }
 
-  if (Date.now() - issuedAt > SESSION_TTL_MS) {
+  if (!NONCE_REGEX.test(nonce)) {
+    return null;
+  }
+
+  const now = Date.now();
+  if (issuedAt > now || now - issuedAt > SESSION_TTL_MS) {
     return null;
   }
 
