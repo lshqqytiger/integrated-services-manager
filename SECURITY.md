@@ -54,7 +54,7 @@ Important caveat:
   - payload structure: exactly three colon-separated segments (`version:issuedAt:nonce`)
   - version match (`v1`)
   - nonce format: exactly 64 lowercase hexadecimal characters
-  - issue timestamp is not in the future (guards against clock-skew exploits)
+  - issued timestamp is not in the future (guards against clock-skew exploits)
   - expiration (12-hour TTL)
 
 ### Cookie settings
