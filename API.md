@@ -14,6 +14,7 @@ Base characteristics:
 ## Authentication Model
 
 - Public endpoint:
+  - `POST /api/auth/login/session`
   - `POST /api/auth/login`
 - Protected endpoints:
   - `POST /api/services/:id/toggle`
@@ -24,6 +25,25 @@ Protected handlers use server-side session checks via `requireSession()`.
 
 ## Endpoint: Login
 
+### POST /api/auth/login/session
+
+Issue a short-lived login session cookie required for login attempts.
+
+Response body:
+
+```json
+{
+  "ok": true,
+  "captchaPrompt": "CAPTCHA: What is 2 + 7?",
+  "blockedMessage": null,
+  "cooldownMessage": null
+}
+```
+
+Side effect:
+
+- Sets cookie `login_session` (`HttpOnly`, `SameSite=Lax`, `Path=/`, 15-minute max-age, `Secure` in production)
+
 ### POST /api/auth/login
 
 Authenticate user and issue session cookie.
@@ -32,14 +52,17 @@ Request body:
 
 ```json
 {
-  "hashedPassword": "<sha512-hex>"
+  "hashedPassword": "<sha512-hex>",
+  "captchaAnswer": "<required when prompted>"
 }
 ```
 
 Request notes:
 
 - `hashedPassword` is required.
+- `hashedPassword` must be 128-char lowercase SHA-512 hex.
 - Frontend hashes plaintext password with SHA-512 before sending.
+- A valid `login_session` cookie is required.
 
 Success response:
 
@@ -81,7 +104,9 @@ or
 
 ```json
 {
-  "error": "Invalid password. N attempts remaining."
+  "error": "Invalid password. N attempts remaining.",
+  "retryAfterMs": 5000,
+  "captchaPrompt": "CAPTCHA: What is 2 + 7?"
 }
 ```
 
@@ -89,7 +114,7 @@ or
 
 ```json
 {
-  "error": "Too many failed attempts. Please try again after the block period ends."
+  "error": "Too many failed attempts. Please try again in N seconds."
 }
 ```
 
@@ -104,6 +129,8 @@ or
 Rate limiting behavior:
 
 - Source IP derives in order from `x-forwarded-for`, `x-real-ip`, fallback `0.0.0.0`.
+- Failed attempts apply exponential cooldown backoff (starting at 5 seconds, capped at 10 minutes).
+- CAPTCHA challenge is required after 3 failed attempts.
 - 5 failed attempts block IP for 12 hours.
 - Successful login resets attempt counter for that IP.
 
