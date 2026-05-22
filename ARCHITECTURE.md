@@ -186,6 +186,7 @@ Implemented protections:
 
 - HTTP-only signed session cookie
 - Server-side session verification for dashboard and service APIs
+- Strict session token validation: exact two-part structure, HMAC-SHA512 signature, version match, 64-character hex nonce, future-timestamp guard, and 12-hour TTL expiry
 - Password not transmitted in plaintext (client sends SHA-512 hash)
 - In-memory IP throttling: 5 failures then 12-hour block
 - `SameSite=Lax` cookies and `Secure` in production
