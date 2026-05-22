@@ -48,10 +48,13 @@ Important caveat:
 - HMAC-SHA512 over payload
 - Constant-time signature comparison (`timingSafeEqual`) when lengths match
 - Validation checks:
-  - token shape and decode validity
-  - signature validity
-  - payload integrity
-  - version match
+  - token shape: exactly two dot-separated parts (`<encodedPayload>.<signature>`)
+  - base64url decode validity
+  - HMAC-SHA512 signature validity
+  - payload structure: exactly three colon-separated segments (`version:issuedAt:nonce`)
+  - version match (`v1`)
+  - nonce format: exactly 64 lowercase hexadecimal characters
+  - issue timestamp is not in the future (guards against clock-skew exploits)
   - expiration (12-hour TTL)
 
 ### Cookie settings
