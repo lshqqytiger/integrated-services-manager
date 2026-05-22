@@ -124,7 +124,8 @@ export function verifySessionToken(
   }
 
   const now = Date.now();
-  if (issuedAt > now || now - issuedAt > SESSION_TTL_MS) {
+  const maxFutureSkewMs = 5 * 60 * 1000; // tolerate small clock adjustments
+  if (issuedAt > now + maxFutureSkewMs || now - issuedAt > SESSION_TTL_MS) {
     return null;
   }
 
