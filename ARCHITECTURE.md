@@ -159,7 +159,8 @@ Start semantics:
 - If `executable` is an absolute path, verifies it exists.
 - Spawns process as: `<executable> <args...>`
 - Sets `cwd` to service `root`.
-- Injects `SERVICE_NAME` and `SERVICE_MODE` into child environment.
+- Injects `NODE_ENV`, `SERVICE_NAME`, and `SERVICE_MODE` into child environment.
+- Derives `NODE_ENV` from service mode: `PRODUCTION -> production`, `DEVELOPMENT -> development`.
 - Captures `stdout` and `stderr` and appends timestamped lines.
 - Uses UTF-8 stream decoders and flushes remainder buffers on process exit/error.
 - Enables stdin piping (`stdio: ["pipe", "pipe", "pipe"]`) for terminal input.

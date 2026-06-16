@@ -64,7 +64,7 @@ Field behavior:
 - `name`: display name and ID seed
 - `root`: working directory (`cwd`) for command execution
 - `command`: full command line parsed into executable and args
-- `mode`: `DEVELOPMENT` or `PRODUCTION`
+- `mode`: `DEVELOPMENT` or `PRODUCTION`; also determines child `NODE_ENV` (`development` or `production`)
 
 Runtime behavior:
 

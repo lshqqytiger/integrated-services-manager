@@ -111,7 +111,7 @@ Current guardrails:
 - working directory existence check before spawn
 - absolute executable existence check before spawn
 - execution uses parsed command tokens (`executable` + `args`)
-- injected environment additions limited to `SERVICE_NAME` and `SERVICE_MODE`
+- injected environment additions limited to `NODE_ENV`, `SERVICE_NAME`, and `SERVICE_MODE`
 - graceful stop via SIGTERM, then SIGKILL escalation after timeout
 
 Residual risks:

@@ -1,6 +1,6 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import {
   ServiceStatus,
@@ -15,7 +15,7 @@ const MAX_STDIN_INPUT_CHARS = 16000;
 type StreamKind = "stdout" | "stderr";
 
 type ManagedProcess = {
-  child: ChildProcess;
+  child: ChildProcessWithoutNullStreams;
   stdoutDecoder: StringDecoder;
   stderrDecoder: StringDecoder;
   stdoutRemainder: string;
@@ -26,6 +26,12 @@ type ManagerStore = {
   processes: Map<string, ManagedProcess>;
   logs: Map<string, string[]>;
 };
+
+function getNodeEnvForServiceMode(
+  mode: ServiceRuntime["mode"],
+): "development" | "production" {
+  return mode === "PRODUCTION" ? "production" : "development";
+}
 
 declare global {
   // eslint-disable-next-line no-var
@@ -210,6 +216,7 @@ export async function startServiceProcess(
     cwd: service.root,
     env: {
       ...process.env,
+      NODE_ENV: getNodeEnvForServiceMode(service.mode),
       SERVICE_NAME: service.name,
       SERVICE_MODE: service.mode,
     },
