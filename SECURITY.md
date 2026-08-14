@@ -27,6 +27,11 @@ All privileged actions (start, stop, log access) are enforced server-side via se
 ### Password handling
 
 - Server reads `SYSTEM_PASSWORD` from environment.
+- `SYSTEM_PASSWORD` must be strong:
+  - minimum length: 12
+  - includes uppercase and lowercase letters
+  - includes at least one number
+  - includes at least one symbol
 - Server computes SHA-512 hash and compares to client `hashedPassword`.
 - Client sends SHA-512 hash of password instead of plaintext.
 
@@ -72,11 +77,14 @@ Important caveat:
 
 ## 4. Brute Force and Abuse Controls
 
-Login endpoint applies in-memory IP attempt tracking:
+Login endpoint applies in-memory login abuse controls:
 
 - maximum failed attempts: 5
+- exponential cooldown after each failed attempt (starts at 5s, capped at 10m)
+- CAPTCHA challenge required after 3 failed attempts
 - block duration: 12 hours
 - successful login resets IP attempt record
+- login attempts require short-lived `login_session` cookie (15 minutes)
 
 IP extraction priority:
 

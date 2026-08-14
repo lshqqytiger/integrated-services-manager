@@ -7,8 +7,10 @@ import {
 
 export const SESSION_COOKIE_NAME = "session_token";
 export const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
+export const MIN_PASSWORD_LENGTH = 12;
 const TOKEN_VERSION = "v1";
 const NONCE_REGEX = /^[0-9a-f]{64}$/;
+const SHA512_HEX_REGEX = /^[0-9a-f]{128}$/;
 
 declare global {
   // eslint-disable-next-line no-var
@@ -31,9 +33,14 @@ export interface SessionPayload {
 }
 
 function ensureSystemPasswordHash(): string {
-  if (!systemPasswordHash) {
+  if (!systemPassword || !systemPasswordHash) {
     throw new Error(
       "SYSTEM_PASSWORD is not configured. Set it in the environment."
+    );
+  }
+  if (!isStrongPassword(systemPassword)) {
+    throw new Error(
+      `SYSTEM_PASSWORD does not meet minimum security requirements (length >= ${MIN_PASSWORD_LENGTH}, upper/lowercase letters, number, symbol).`
     );
   }
   return systemPasswordHash;
@@ -68,6 +75,29 @@ function safeEqual(expectedHex: string, providedHex: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function isStrongPassword(password: string): boolean {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return false;
+  }
+  return (
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
+}
+
+export function isSha512Hex(value: string): boolean {
+  return SHA512_HEX_REGEX.test(value);
+}
+
+export function verifySystemPasswordHash(hashedPassword: string): boolean {
+  if (!isSha512Hex(hashedPassword)) {
+    return false;
+  }
+  return safeEqual(ensureSystemPasswordHash(), hashedPassword);
 }
 
 export function createSessionToken(): string {
