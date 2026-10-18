@@ -21,6 +21,7 @@ echo "SYSTEM_PASSWORD=change-me" >> .env
 ```
 
 The password is hashed with SHA-512 on both client and server before comparison.
+`SYSTEM_PASSWORD` must be strong: at least 12 characters including uppercase, lowercase, number, and symbol.
 
 3. Describe services in `data/settings.json` (template: `data/settings.inc.json`)
 
@@ -71,6 +72,9 @@ Runtime behavior:
 - Service IDs are generated from service name plus index order.
 - Process controls are in-memory and not persisted.
 - Session tokens expire after 12 hours and are invalidated on server restart.
+- Login requires a short-lived login session cookie (`login_session`) before submit.
+- Login cooldown uses exponential backoff after each failure (starting at 5 seconds, capped at 10 minutes).
+- CAPTCHA challenge is required after repeated failed attempts.
 - IP throttling blocks after 5 failed login attempts for 12 hours.
 - Process logs are buffered in-memory (last 2000 lines) and exposed through `/api/services/:id/log`.
 - Log decoding is UTF-8 safe across stream chunks, preserving Unicode output.
