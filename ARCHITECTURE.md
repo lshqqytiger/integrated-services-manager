@@ -38,6 +38,8 @@ Main boundaries:
   - Login page and client submit flow
 - `src/app/api/auth/login/route.ts`
   - Login endpoint, IP throttling, session cookie issuance
+- `src/app/api/auth/login/session/route.ts`
+  - Login-session bootstrap endpoint for `login_session` cookie issuance
 - `src/app/api/services/[id]/toggle/route.ts`
   - Start and stop toggle endpoint
 - `src/app/api/services/[id]/log/route.ts`
@@ -53,7 +55,7 @@ Main boundaries:
 - `src/app/lib/service-manager.ts`
   - Child process lifecycle and log buffering
 - `src/app/lib/ip-blocklist.ts`
-  - In-memory failed-attempt tracking and temporary IP blocking
+  - In-memory failed-attempt tracking, cooldown/CAPTCHA state, temporary IP blocking, login-session state
 - `src/app/types.ts`
   - Shared contracts for settings, runtime, and API results
 
@@ -61,15 +63,17 @@ Main boundaries:
 
 ### 4.1 Login Flow
 
-1. User submits password on the login form.
-2. Browser hashes the password with SHA-512 (`crypto.subtle.digest`) and sends `hashedPassword`.
-3. `POST /api/auth/login` compares it to the server-side `SYSTEM_PASSWORD` hash.
-4. On success, server sets HTTP-only session cookie (`session_token`) and returns `{ ok: true }`.
-5. On failure, server increments per-IP attempt count and may return 429 when blocked.
+1. Login page requests `POST /api/auth/login/session` to issue short-lived `login_session`.
+2. User submits password on the login form.
+3. Browser hashes the password with SHA-512 (`crypto.subtle.digest`) and sends `hashedPassword`.
+4. `POST /api/auth/login` requires valid `login_session`, validates CAPTCHA when required, and compares to server-side `SYSTEM_PASSWORD` hash.
+5. On success, server sets HTTP-only session cookie (`session_token`) and returns `{ ok: true }`.
+6. On failure, server increments per-IP attempt count, enforces exponential cooldown, and eventually returns 429 when blocked.
 
 Notes:
 
 - Session TTL is 12 hours.
+- Login session TTL is 15 minutes.
 - Session signature uses HMAC-SHA512 over a compact payload.
 - Signing secret combines password hash and a per-runtime random secret; restart invalidates active sessions.
 
